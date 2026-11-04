@@ -37,8 +37,9 @@ python step1_load_holdings.py
 
 ### 2) 인증키가 생긴 뒤
 공공데이터포털에서 `금융위원회_KRX상장종목정보`와 `금융위원회_주식시세정보`에 활용신청하고 승인받습니다.
-인증키는 **Decoding(일반) 인증키**를 씁니다. 파일에 쓰지 말고 환경변수로만 설정하세요.
+인증키는 **Decoding(일반) 인증키**를 씁니다. 아래 둘 중 하나로 설정하세요(환경변수가 `.env`보다 우선).
 
+- `.env` 파일(이 폴더, git에서 제외됨): `DATA_GO_KR_KEY=여기에키`
 - 윈도우 PowerShell: `$env:DATA_GO_KR_KEY="여기에키"`
 - 맥/리눅스: `export DATA_GO_KR_KEY="여기에키"`
 
