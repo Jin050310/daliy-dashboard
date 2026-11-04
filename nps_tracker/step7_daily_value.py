@@ -2,8 +2,9 @@
 
     python step7_daily_value.py
 
-입력: data/shares.csv (step5), data/prices_20251230.csv, data/daily_prices.csv (step6)
-출력: data/daily_value.csv (일별 합계), data/share_events.csv (주식 수 변동 사건)
+입력: data/shares.csv (step5), data/prices_20251230.csv, data/daily/*.csv (step6)
+출력: data/daily_value.csv (일별 합계), data/share_events.csv (주식 수 변동 사건),
+      data/latest_holdings.csv (종목별 기준일·최근일 평가액)
 
     일별 평가액 = 보유주식수 x 분할 보정 배수 x 그날 종가
 
@@ -74,7 +75,8 @@ def find_adjustments(p: pd.DataFrame) -> pd.DataFrame:
 
 def load_prices(held: set[str]) -> pd.DataFrame:
     base = pd.read_csv(config.PRICES_CSV, dtype=str, encoding="utf-8-sig")
-    daily = pd.read_csv(config.DAILY_PRICES_CSV, dtype=str, encoding="utf-8-sig")
+    files = sorted(config.DAILY_PRICES_DIR.glob("*.csv"))
+    daily = pd.concat([pd.read_csv(f, dtype=str, encoding="utf-8-sig") for f in files], ignore_index=True)
     cols = ["basDt", "srtnCd", "itmsNm", "clpr", "lstgStCnt"]
     p = pd.concat([base[cols], daily[cols]], ignore_index=True)
     p = p[p["srtnCd"].isin(held)].drop_duplicates(["basDt", "srtnCd"])
@@ -84,9 +86,11 @@ def load_prices(held: set[str]) -> pd.DataFrame:
 
 
 def main() -> None:
-    for f in (config.SHARES_CSV, config.PRICES_CSV, config.DAILY_PRICES_CSV):
+    for f in (config.SHARES_CSV, config.PRICES_CSV):
         if not f.exists():
-            raise SystemExit(f"파일이 없습니다: {f} (먼저 step5, fetch_prices, step6을 실행하세요)")
+            raise SystemExit(f"파일이 없습니다: {f} (먼저 step5, fetch_prices를 실행하세요)")
+    if not any(config.DAILY_PRICES_DIR.glob("*.csv")):
+        raise SystemExit(f"일별 종가가 없습니다: {config.DAILY_PRICES_DIR} (먼저 step6을 실행하세요)")
     sh = pd.read_csv(config.SHARES_CSV, dtype={"종목코드": str}, encoding="utf-8-sig")
     shares = sh.set_index("종목코드")["보유주식수"]
     p = load_prices(set(shares.index) | {to for _, to, _, _ in config.MERGERS})
@@ -133,6 +137,20 @@ def main() -> None:
     })
     out.to_csv(config.DAILY_VALUE_CSV, index=False, encoding="utf-8-sig")
 
+    held_codes = [c for c in value.columns if c in shares.index]
+    latest = pd.DataFrame({
+        "종목코드": held_codes,
+        "종목명": sh.set_index("종목코드").loc[held_codes, "종목명"].values,
+        "기준일_억": (value.iloc[0][held_codes] / 1e8).round(1).values,
+        "최근일_억": (value.iloc[-1][held_codes] / 1e8).round(1).values,
+        "종가고정": stale.iloc[-1][held_codes].values,
+    })
+    latest["변화율_%"] = ((latest["최근일_억"] / latest["기준일_억"] - 1) * 100).round(2)
+    latest["최근_비중_%"] = (latest["최근일_억"] / latest["최근일_억"].sum() * 100).round(3)
+    latest.sort_values("최근일_억", ascending=False).to_csv(
+        config.LATEST_HOLDINGS_CSV, index=False, encoding="utf-8-sig"
+    )
+
     # 3) 결과와 점검
     base_eok = sh["평가액_억"].sum()
     print("=== 일별 평가액 (2025년 말 공시 보유분 기준) ===")
@@ -164,7 +182,7 @@ def main() -> None:
         print(s.sort_values("평가액_억", ascending=False)[["종목명", "basDt", "배율", "평가액_억"]]
               .round(3).head(15).to_string(index=False))
 
-    print(f"\n저장: {config.DAILY_VALUE_CSV}\n저장: {config.SHARE_EVENTS_CSV}")
+    print(f"\n저장: {config.DAILY_VALUE_CSV}\n저장: {config.SHARE_EVENTS_CSV}\n저장: {config.LATEST_HOLDINGS_CSV}")
 
 
 if __name__ == "__main__":

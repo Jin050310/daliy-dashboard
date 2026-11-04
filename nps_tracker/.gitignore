@@ -1,12 +1,15 @@
 .venv/
 __pycache__/
 .env
+# 로컬에서만 쓰는 중간 파일
 data/holdings_clean.csv
 data/listed_*.csv
 data/mapping*.csv
-data/prices_*.csv
-data/shares.csv
-data/daily_prices.csv
+# 매번 다시 만드는 결과 파일과 사이트
 data/daily_value.csv
 data/share_events.csv
 data/monthly_check.csv
+data/latest_holdings.csv
+site/
+# 자동 업데이트(GitHub Actions)가 쓰므로 저장소에 올리는 파일:
+#   data/shares.csv, data/prices_20251230.csv, data/daily/*.csv

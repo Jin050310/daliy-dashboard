@@ -69,7 +69,7 @@ python step5_shares.py
 python step6_daily_prices.py
 python step7_daily_value.py
 ```
-`step6`은 2026-01-02부터 어제까지 하루 1회 호출로 보유 종목 종가를 모읍니다. 이미 받은 날짜는 건너뛰므로 매일 다시 실행하면 새 날짜만 추가됩니다.
+`step6`은 2026-01-02부터 어제까지 하루 1회 호출로 보유 종목 종가를 모아 `data/daily/YYYYMM.csv`(월별 파일)에 저장합니다. 이미 받은 날짜는 건너뛰므로 매일 다시 실행하면 새 날짜만 추가됩니다.
 `step7`은 `보유주식수 x 보정배율 x 그날 종가`로 일별 합계를 `data/daily_value.csv`에 만듭니다.
 API 종가가 수정주가가 아니어서 액면분할·병합과 무상증자(권리락일 기준)는 자동 보정하고, 유상증자·합병 등은 `data/share_events.csv`에 남깁니다.
 주식으로 교부되는 합병은 `config.py`의 `MERGERS`에 적어 두면 신주 상장일부터 존속 종목 주식으로 바꿔 평가합니다.
@@ -82,6 +82,21 @@ python step8_monthly_check.py
 `config.py`의 `OFFICIAL_MONTHLY`(공시·보도된 월말 국내주식 평가액)와 추적값을 비교해 `data/monthly_check.csv`를 만듭니다.
 이 지표는 2025년 말 이후 매매를 반영하지 않으므로 차이가 나는 것이 정상입니다. 기준일 커버율(99.2%)에서 얼마나 벗어나는지로 매매 효과의 대략적인 크기를 봅니다.
 새 월말 공시가 나오면 `OFFICIAL_MONTHLY`에 한 줄 추가하세요. 지분 5% 이상 종목만 합친 보도 수치는 기준이 달라 넣으면 안 됩니다.
+
+### 7) 대시보드와 자동 업데이트
+```
+python build_dashboard.py
+```
+`site/index.html` 하나로 대시보드를 만듭니다(데이터 내장, 외부 라이브러리 없음).
+
+`.github/workflows/daily-update.yml`이 매 평일 오후 3시(KST)에 GitHub 서버에서
+`step6 -> step7 -> step8 -> build_dashboard`를 돌리고, 새 종가를 커밋한 뒤 GitHub Pages에 배포합니다.
+PC를 켜 둘 필요가 없고, Pages 주소는 바뀌지 않습니다. 처음 한 번 저장소 설정이 필요합니다.
+- Settings > Secrets and variables > Actions: `DATA_GO_KR_KEY` 등록
+- Settings > Pages > Source: `GitHub Actions`
+
+자동 업데이트가 `data/daily/`를 커밋하므로, 로컬에서 작업하기 전에 `git pull`을 먼저 하세요.
+새 월말 공시(`OFFICIAL_MONTHLY`)나 합병(`MERGERS`)을 추가할 때는 `config.py`만 고쳐 푸시하면 다음 실행부터 반영됩니다.
 
 ## 주의
 - 인증키를 코드, 채팅, 깃에 올리지 마세요. `.gitignore`에 `.env`와 결과 파일이 들어 있습니다.

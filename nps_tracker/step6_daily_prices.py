@@ -3,10 +3,11 @@
     python step6_daily_prices.py
 
 입력: data/shares.csv (step5)
-출력: data/daily_prices.csv (basDt, srtnCd, itmsNm, clpr, lstgStCnt)
+출력: data/daily/YYYYMM.csv (basDt, srtnCd, itmsNm, clpr, lstgStCnt)
 
 - config.DAILY_START부터 어제까지 평일마다 하루치 전 종목을 한 번에 받는다(호출 1회/일).
 - 이미 받은 날짜는 건너뛰므로 매일 다시 실행하면 새 날짜만 추가된다.
+- 월별 파일로 나눠 저장하므로 매일 바뀌는 파일은 이번 달 것 하나뿐이다(git 커밋이 작다).
 - 휴장일은 결과가 0건이라 저장하지 않는다.
 - 종가는 다음 영업일 오후 1시 이후에 올라오므로 어제 값이 아직 없을 수 있다.
 - 이 API의 종가는 수정주가가 아니므로, 상장주식수가 크게 바뀐 종목(액면분할·무상증자 후보)을 따로 알려 준다.
@@ -29,10 +30,20 @@ SPLIT_RATIO = 1.3  # 하루 사이 상장주식수가 이 배수 이상 바뀌�
 SAVE_EVERY = 20    # 이 날짜 수마다 중간 저장 (도중에 끊겨도 받은 만큼은 남는다)
 
 
+def load_daily() -> pd.DataFrame:
+    """data/daily/*.csv를 모두 읽는다. 없으면 빈 표."""
+    files = sorted(config.DAILY_PRICES_DIR.glob("*.csv"))
+    if not files:
+        return pd.DataFrame(columns=KEEP_COLS)
+    return pd.concat([pd.read_csv(f, dtype=str, encoding="utf-8-sig") for f in files], ignore_index=True)
+
+
 def save(parts: list[pd.DataFrame]) -> pd.DataFrame:
     allp = pd.concat(parts, ignore_index=True)
-    allp = allp.drop_duplicates(["basDt", "srtnCd"]).sort_values(["srtnCd", "basDt"])
-    allp.to_csv(config.DAILY_PRICES_CSV, index=False, encoding="utf-8-sig")
+    allp = allp.drop_duplicates(["basDt", "srtnCd"]).sort_values(["basDt", "srtnCd"])
+    config.DAILY_PRICES_DIR.mkdir(parents=True, exist_ok=True)
+    for ym, grp in allp.groupby(allp["basDt"].str[:6]):
+        grp.to_csv(config.DAILY_PRICES_DIR / f"{ym}.csv", index=False, encoding="utf-8-sig")
     return allp
 
 
@@ -52,10 +63,7 @@ def main() -> None:
     held = set(pd.read_csv(config.SHARES_CSV, dtype={"종목코드": str}, encoding="utf-8-sig")["종목코드"])
     held |= {to for _, to, _, _ in config.MERGERS}  # 합병 존속 종목은 보유하지 않았더라도 종가가 필요하다
 
-    if config.DAILY_PRICES_CSV.exists():
-        old = pd.read_csv(config.DAILY_PRICES_CSV, dtype=str, encoding="utf-8-sig")
-    else:
-        old = pd.DataFrame(columns=KEEP_COLS)
+    old = load_daily()
     have = set(old["basDt"])
 
     todo = [d for d in weekdays(config.DAILY_START, date.today() - timedelta(days=1)) if d not in have]
@@ -92,17 +100,15 @@ def main() -> None:
         print(mm.sort_values("평가액_억", ascending=False).to_string(index=False))
 
     # 상장주식수가 하루 사이 크게 바뀐 종목: 액면분할·병합·무상증자 후보
-    p = allp.copy()
+    p = allp.sort_values(["srtnCd", "basDt"]).copy()
     p["clpr"] = pd.to_numeric(p["clpr"])
     p["lstgStCnt"] = pd.to_numeric(p["lstgStCnt"])
     p["주식수배율"] = p["lstgStCnt"] / p.groupby("srtnCd")["lstgStCnt"].shift()
     p["종가배율"] = p["clpr"] / p.groupby("srtnCd")["clpr"].shift()
     ev = p[(p["주식수배율"] >= SPLIT_RATIO) | (p["주식수배율"] <= 1 / SPLIT_RATIO)]
-    print(f"\n상장주식수가 하루 사이 {SPLIT_RATIO}배 이상 바뀐 경우: {len(ev)}건")
-    if not ev.empty:
-        print(ev[["srtnCd", "itmsNm", "basDt", "주식수배율", "종가배율"]].round(3).to_string(index=False))
+    print(f"\n상장주식수가 하루 사이 {SPLIT_RATIO}배 이상 바뀐 경우: {len(ev)}건 (처리는 step7)")
 
-    print(f"\n저장: {config.DAILY_PRICES_CSV}")
+    print(f"\n저장: {config.DAILY_PRICES_DIR}")
 
 
 if __name__ == "__main__":

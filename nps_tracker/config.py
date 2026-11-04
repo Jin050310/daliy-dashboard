@@ -16,9 +16,11 @@ PRICES_CSV = DATA / "prices_20251230.csv"
 MAPPING_CSV = DATA / "mapping.csv"
 MAPPING_REVIEW_CSV = DATA / "mapping_review.csv"
 SHARES_CSV = DATA / "shares.csv"  # 5단계 결과: 종목별 보유 주식 수
-DAILY_PRICES_CSV = DATA / "daily_prices.csv"  # 6단계 결과: 보유 종목의 일별 종가
+DAILY_PRICES_DIR = DATA / "daily"  # 6단계 결과: 보유 종목의 일별 종가 (월별 파일 YYYYMM.csv)
 DAILY_VALUE_CSV = DATA / "daily_value.csv"    # 7단계 결과: 일별 평가액 합계
 SHARE_EVENTS_CSV = DATA / "share_events.csv"  # 7단계 결과: 주식 수 변동 사건과 처리 여부
+LATEST_HOLDINGS_CSV = DATA / "latest_holdings.csv"  # 7단계 결과: 종목별 기준일·최근일 평가액
+SITE_DIR = ROOT / "site"  # 대시보드 출력 폴더 (GitHub Pages로 배포)
 
 # 일별 종가 수집 시작일 (2026년 첫 거래일)
 DAILY_START = "20260102"
