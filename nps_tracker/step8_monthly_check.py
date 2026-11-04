@@ -38,38 +38,42 @@ def main() -> None:
         raise SystemExit(f"파일이 없습니다: {config.DAILY_VALUE_CSV} (먼저 step7을 실행하세요)")
     v = pd.read_csv(config.DAILY_VALUE_CSV, dtype={"basDt": str}, encoding="utf-8-sig")
 
+    officials = official_list()
+    amount = {ym: val for ym, val, _, _ in officials}
     rows = []
-    for ym, official, src, trust in official_list():
+    for ym, official, src, trust in officials:
         month_days = v[v["basDt"].str[:6] == ym]
         if month_days.empty:
             continue
         last = month_days.iloc[-1]  # 그 달의 마지막 거래일
+        # 그 날 적용 중인 보유 기준의 출발 커버율. 그 해 말 공시값이 없으면 비교하지 않는다
+        base_official = amount.get(f"{last['보유기준연도']}12")
+        base_cover = last["기준평가액_조"] / base_official * 100 if base_official else None
+        cover = last["평가액_조"] / official * 100
         rows.append({
-            "월": ym, "기준거래일": last["basDt"], "추적값_조": round(last["평가액_조"], 2),
-            "공시값_조": official, "커버율_%": round(last["평가액_조"] / official * 100, 2),
+            "월": ym, "기준거래일": last["basDt"], "보유기준연도": last["보유기준연도"],
+            "추적값_조": round(last["평가액_조"], 2),
+            "공시값_조": official, "커버율_%": round(cover, 2),
+            # 추적값이 공시값보다 작으면(커버율 하락) 기준일 이후 순매수, 크면 순매도 쪽으로 해석한다
+            "기준대비_추가차이_%p": round(cover - base_cover, 2) if base_cover else None,
+            "매매효과_추정_조": round(official * base_cover / 100 - last["평가액_조"], 1) if base_cover else None,
             "신뢰": trust, "출처": src,
         })
     df = pd.DataFrame(rows)
-    if df.empty or df.iloc[0]["월"] != "202512":
-        raise SystemExit("2025년 12월 공시값(기준)이 없습니다. config.OFFICIAL_MONTHLY나 fetch_official을 확인하세요.")
-
-    base_cover = df.iloc[0]["커버율_%"]
-    df["기준대비_추가차이_%p"] = (df["커버율_%"] - base_cover).round(2)
-    # 추적값이 공시값보다 작으면(커버율 하락) 2025년 말 이후 순매수, 크면 순매도 쪽으로 해석한다
-    df["매매효과_추정_조"] = (df["공시값_조"] * base_cover / 100 - df["추적값_조"]).round(1)
+    if df.empty:
+        raise SystemExit("비교할 공시값이 없습니다. config.OFFICIAL_MONTHLY나 fetch_official을 확인하세요.")
     df.to_csv(config.MONTHLY_CHECK_CSV, index=False, encoding="utf-8-sig")
 
-    print("=== 월별 검증: 추적값(2025년 말 보유분 고정) vs 국민연금 공시 ===")
-    show = ["월", "기준거래일", "추적값_조", "공시값_조", "커버율_%", "기준대비_추가차이_%p", "매매효과_추정_조", "신뢰"]
+    print("=== 월별 검증: 추적값(연말 공시 보유분 고정) vs 국민연금 공시 ===")
+    show = ["월", "기준거래일", "보유기준연도", "추적값_조", "공시값_조", "커버율_%", "기준대비_추가차이_%p", "매매효과_추정_조", "신뢰"]
     print(df[show].to_string(index=False))
 
-    print(f"\n기준(2025년 12월) 커버율: {base_cover:.2f}%")
-    off = df[(df["신뢰"] == "공식") & (df["월"] != "202512")]
+    off = df[(df["신뢰"] == "공식") & (df["기준대비_추가차이_%p"].fillna(0) != 0)]
     if not off.empty:
         worst = off.loc[off["기준대비_추가차이_%p"].abs().idxmax()]
         print(f"공식 값 기준 추가 차이 범위: {off['기준대비_추가차이_%p'].min():+.2f} ~ "
               f"{off['기준대비_추가차이_%p'].max():+.2f}%p (가장 큰 달 {worst['월']})")
-        print("-> 매매효과_추정_조 > 0: 2025년 말 이후 국내주식을 순매수했거나 오른 종목 비중을 늘린 효과")
+        print("-> 매매효과_추정_조 > 0: 기준일 이후 국내주식을 순매수했거나 오른 종목 비중을 늘린 효과")
         print("   매매효과_추정_조 < 0: 순매도했거나 비중을 줄인 효과 (시장 변동과 섞여 있으므로 대략적인 크기로만 볼 것)")
     print(f"\n저장: {config.MONTHLY_CHECK_CSV}")
 

@@ -93,14 +93,26 @@ python fetch_votes.py
 이미 받은 주총은 건너뛰므로 처음에만 몇 분 걸리고 이후에는 새 주총만 받습니다. 해외 의결권은 다루지 않습니다.
 최근 공시는 안건마다 찬성·반대·중립·기권 비율 네 줄로 나오므로, 대시보드는 안건마다 결과 하나(찬성·반대·분할 등)로 정리해 보여 줍니다.
 
-### 8) 대시보드와 자동 업데이트
+### 8) 새 연말 공시 자동 교체
+```
+python roll_year.py
+```
+기금운용본부는 전년도 말 종목별 보유 내역을 매년 3분기에 공시합니다. 자동 업데이트가 매일 이 스크립트를 돌려 새 연도 파일을 찾습니다.
+새 파일이 있으면 받아서 종목코드를 맞추고 보유주식수를 계산한 뒤, 검증(기준 연도, 종목 수, 매핑 비율 99.5% 이상, 공시 총액 대비 95~105%, 지분율 교차 검증)을 모두 통과할 때만 `data/bases/YYYY/`에 저장합니다.
+실패하면 아무것도 바꾸지 않고 실패 메일이 옵니다. 대개 새 종목명 매핑이 원인이니, 출력된 목록을 `data/manual_map.csv`에 적으면 다음 실행에서 다시 시도합니다.
+
+새 공시는 그 연말 마지막 거래일 다음 날부터 적용되어 그 뒤 값이 다시 계산됩니다. 교체일의 합계 변화는 그동안의 실제 매매가 드러난 것이고, 전일 대비는 같은 보유분끼리 비교합니다.
+주식으로 교부되는 합병은 여전히 `config.py`의 `MERGERS`에 직접 적습니다.
+
+### 9) 대시보드와 자동 업데이트
 ```
 python build_dashboard.py
 ```
 `site/index.html` 하나로 대시보드를 만듭니다(데이터 내장, 외부 라이브러리 없음).
 
 `.github/workflows/daily-update.yml`이 매 평일 오후 3시(KST)에 GitHub 서버에서
-`step6 -> fetch_votes -> fetch_official -> step7 -> step8 -> build_dashboard`를 돌리고, 새 데이터를 커밋한 뒤 GitHub Pages에 배포합니다.
+`roll_year -> step6 -> fetch_votes -> fetch_official -> step7 -> step8 -> build_dashboard`를 돌리고, 새 데이터를 커밋한 뒤 GitHub Pages에 배포합니다.
+수집 단계가 실패해도 페이지는 기존 데이터로 배포되고, 실행은 실패로 표시되어 메일이 옵니다.
 PC를 켜 둘 필요가 없고, Pages 주소는 바뀌지 않습니다. 처음 한 번 저장소 설정이 필요합니다.
 - Settings > Secrets and variables > Actions: `DATA_GO_KR_KEY` 등록
 - Settings > Pages > Source: `GitHub Actions`

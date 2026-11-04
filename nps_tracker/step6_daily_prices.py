@@ -2,10 +2,10 @@
 
     python step6_daily_prices.py
 
-입력: data/shares.csv (step5)
+입력: 현재 보유 기준 (bases.py)
 출력: data/daily/YYYYMM.csv (basDt, srtnCd, itmsNm, clpr, lstgStCnt)
 
-- config.DAILY_START부터 어제까지 평일마다 하루치 전 종목을 한 번에 받는다(호출 1회/일).
+- 첫 보유 기준일 다음 날부터 어제까지 평일마다 하루치 전 종목을 한 번에 받는다(호출 1회/일).
 - 이미 받은 날짜는 건너뛰므로 매일 다시 실행하면 새 날짜만 추가된다.
 - 월별 파일로 나눠 저장하므로 매일 바뀌는 파일은 이번 달 것 하나뿐이다(git 커밋이 작다).
 - 휴장일은 결과가 0건이라 저장하지 않는다.
@@ -17,6 +17,7 @@ from datetime import date, datetime, timedelta
 
 import pandas as pd
 
+import bases
 import config
 import krx_api
 
@@ -58,15 +59,18 @@ def weekdays(start: str, end: date) -> list[str]:
 
 
 def main() -> None:
-    if not config.SHARES_CSV.exists():
-        raise SystemExit(f"파일이 없습니다: {config.SHARES_CSV} (먼저 step5를 실행하세요)")
-    held = set(pd.read_csv(config.SHARES_CSV, dtype={"종목코드": str}, encoding="utf-8-sig")["종목코드"])
+    all_bases = bases.list_bases()
+    if not all_bases:
+        raise SystemExit("보유 기준이 없습니다. 먼저 step5나 roll_year를 실행하세요.")
+    sh = all_bases[-1].load_shares()
+    held = set(sh["종목코드"])
     held |= {to for _, to, _, _ in config.MERGERS}  # 합병 존속 종목은 보유하지 않았더라도 종가가 필요하다
 
     old = load_daily()
     have = set(old["basDt"])
 
-    todo = [d for d in weekdays(config.DAILY_START, date.today() - timedelta(days=1)) if d not in have]
+    first = datetime.strptime(all_bases[0].date, "%Y%m%d").date() + timedelta(days=1)
+    todo = [d for d in weekdays(first.strftime("%Y%m%d"), date.today() - timedelta(days=1)) if d not in have]
     print(f"받을 날짜: {len(todo)}일 (이미 있는 날짜 {len(have)}일)")
 
     new_parts, holidays = [], []
@@ -92,7 +96,6 @@ def main() -> None:
     last = allp[allp["basDt"] == days[-1]]
     missing = sorted(held - set(last["srtnCd"]))
     if missing:
-        sh = pd.read_csv(config.SHARES_CSV, dtype={"종목코드": str}, encoding="utf-8-sig")
         lastseen = allp.groupby("srtnCd")["basDt"].max()
         mm = sh[sh["종목코드"].isin(missing)][["종목명", "종목코드", "평가액_억"]].copy()
         mm["마지막_종가일"] = mm["종목코드"].map(lastseen).fillna("없음")

@@ -1,8 +1,9 @@
 """프로젝트 공통 설정. 경로와 기준값은 여기서만 바꾼다."""
+import os
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
-DATA = ROOT / "data"
+DATA = Path(os.environ.get("NPS_DATA_DIR") or ROOT / "data")  # 시험할 때만 환경변수로 다른 폴더를 쓴다
 
 # 입력 파일 (공공데이터포털 '국민연금공단_국내주식 투자정보_20251231' CSV)
 RAW_CSV = DATA / "raw" / "nps_domestic_stock_20251231.csv"
@@ -22,8 +23,10 @@ SHARE_EVENTS_CSV = DATA / "share_events.csv"  # 7단계 결과: 주식 수 변�
 LATEST_HOLDINGS_CSV = DATA / "latest_holdings.csv"  # 7단계 결과: 종목별 기준일·최근일 평가액
 SITE_DIR = ROOT / "site"  # 대시보드 출력 폴더 (GitHub Pages로 배포)
 
-# 일별 종가 수집 시작일 (2026년 첫 거래일)
-DAILY_START = "20260102"
+# 연말 공시 자동 교체 (roll_year.py). 새 연도 공시는 data/bases/YYYY/에 쌓인다.
+BASES_DIR = DATA / "bases"
+HOLDINGS_PAGE_URL = "https://fund.nps.or.kr/oprtprcn/ivsmprcn/getOHED0003M0.do"  # 연도별 '투자종목' 다운로드 버튼
+HOLDINGS_FILE_BASE = "https://fund.nps.or.kr"
 
 # 주식으로 교부되는 합병: (소멸 종목코드, 존속 종목코드, 소멸 1주당 존속 주식 수, 신주 상장일)
 # 신주 상장일부터 소멸 종목 보유분을 존속 종목 주식으로 바꿔 평가한다.

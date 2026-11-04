@@ -13,6 +13,7 @@ from datetime import datetime, timedelta, timezone
 
 import pandas as pd
 
+import bases
 import config
 
 try:
@@ -75,13 +76,21 @@ def main() -> None:
     h = pd.read_csv(config.LATEST_HOLDINGS_CSV, dtype={"종목코드": str}, encoding="utf-8-sig")
     m = pd.read_csv(config.MONTHLY_CHECK_CSV, dtype={"월": str, "기준거래일": str}, encoding="utf-8-sig")
 
+    last = v.iloc[-1]
+    num = lambda x: None if pd.isna(x) else float(x)  # 빈 값은 JSON에서 null로
     data = {
         "updated": datetime.now(KST).strftime("%Y-%m-%d %H:%M"),
-        "daily": [[d, round(x, 3)] for d, x in zip(v["basDt"], v["평가액_조"])],
-        "stale": int(v["종가고정_종목수"].iloc[-1]),
+        # [날짜, 평가액, 전일 대비 %, 보유 기준 연도]
+        "daily": [[r["basDt"], round(r["평가액_조"], 3), num(r["전일대비_%"]), int(r["보유기준연도"])]
+                  for _, r in v.iterrows()],
+        "hold_year": int(last["보유기준연도"]),
+        "base_value": round(float(last["기준평가액_조"]), 3),
+        "base_pct": float(last["기준일대비_%"]),
+        "base_date": bases.list_bases()[-1].date,
+        "stale": int(last["종가고정_종목수"]),
         "official": [
             {"ym": r["월"], "date": r["기준거래일"], "tracked": r["추적값_조"], "official": r["공시값_조"],
-             "cover": r["커버율_%"], "gap": r["기준대비_추가차이_%p"], "trust": r["신뢰"], "src": r["출처"]}
+             "cover": r["커버율_%"], "gap": num(r["기준대비_추가차이_%p"]), "trust": r["신뢰"], "src": r["출처"]}
             for _, r in m.iterrows()
         ],
         "top": [
@@ -106,7 +115,7 @@ TEMPLATE = r"""<!doctype html>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>국민연금 국내주식 추적</title>
-<meta name="description" content="국민연금 2025년 말 공시 국내주식 보유분을 매일 종가로 평가한 금액">
+<meta name="description" content="국민연금 연말 공시 국내주식 보유분을 매일 종가로 평가한 금액">
 <style>
 :root {
   color-scheme: light;
@@ -200,7 +209,7 @@ footer { color: var(--muted); font-size: 12.5px; margin-top: 18px; }
 <main>
   <header>
     <h1>국민연금 국내주식 추적</h1>
-    <p>국민연금이 공시한 2025년 말 국내주식 보유분을 매일 종가로 평가한 금액입니다.</p>
+    <p>국민연금이 공시한 <span class="hy"></span>년 말 국내주식 보유분을 매일 종가로 평가한 금액입니다.</p>
     <span class="badge" id="badge"></span>
   </header>
 
@@ -208,14 +217,14 @@ footer { color: var(--muted); font-size: 12.5px; margin-top: 18px; }
 
   <section class="card">
     <h2>일별 평가액</h2>
-    <p class="sub">단위: 조 원 · 점은 국민연금이 공시한 월말 국내주식 평가액</p>
+    <p class="sub">단위: 조 원 · 점은 국민연금이 공시한 월말 국내주식 평가액 · 세로 점선은 새 연말 공시로 보유 내역을 교체한 날</p>
     <div class="controls" role="group" aria-label="기간">
       <button data-range="21">1개월</button>
       <button data-range="63">3개월</button>
       <button data-range="126">6개월</button>
       <button data-range="0" aria-pressed="true">전체</button>
       <div class="legend">
-        <span><i class="key-line"></i>추적값 (2025년 말 보유분)</span>
+        <span><i class="key-line"></i>추적값 (연말 공시 보유분)</span>
         <span><i class="key-dot"></i>국민연금 공시 월말값</span>
       </div>
     </div>
@@ -231,7 +240,7 @@ footer { color: var(--muted); font-size: 12.5px; margin-top: 18px; }
 
   <section class="card">
     <h2>공시값과 비교</h2>
-    <p class="sub">2025년 말 보유분을 그대로 들고 있다고 가정한 값과 실제 공시값의 차이입니다. 기준일 차이(커버율)에서 벗어난 만큼이 그 뒤 매매 효과의 대략적인 크기입니다.</p>
+    <p class="sub">연말 공시 보유분을 그대로 들고 있다고 가정한 값과 실제 공시값의 차이입니다. 기준일 차이(커버율)에서 벗어난 만큼이 그 뒤 매매 효과의 대략적인 크기입니다.</p>
     <div class="tbl"><table id="checkTable"></table></div>
   </section>
 
@@ -249,8 +258,9 @@ footer { color: var(--muted); font-size: 12.5px; margin-top: 18px; }
   <section class="card notes">
     <h2>읽을 때 주의할 점</h2>
     <ul>
-      <li>국민연금의 <b>실제 오늘 보유분이 아닙니다.</b> 2025년 말 이후의 매매는 반영하지 않습니다.</li>
-      <li>국내주식만 다루며 기금 전체 자산이 아닙니다. 공시 종목 중 매핑된 종목(평가액 기준 99.98%)만 포함합니다.</li>
+      <li>국민연금의 <b>실제 오늘 보유분이 아닙니다.</b> <span class="hy"></span>년 말 이후의 매매는 반영하지 않습니다.</li>
+      <li>연말 보유 내역은 다음 해 3분기에 공시됩니다. 새 공시가 나오면 그 연말 다음 거래일부터 새 보유 내역으로 다시 계산하므로, 그 기간의 값이 바뀌고 교체일에 그래프가 튈 수 있습니다.</li>
+      <li>국내주식만 다루며 기금 전체 자산이 아닙니다. 공시 종목 중 종목코드가 확인된 종목만 포함합니다.</li>
       <li>종가는 다음 영업일 오후에 공개되므로 하루 늦게 반영됩니다. 매 평일 오후에 자동으로 갱신됩니다.</li>
       <li>액면분할·병합·무상증자와 주식 교부 합병은 보유 주식 수에 반영했습니다. 유상증자 참여 여부는 알 수 없어 반영하지 않습니다.</li>
       <li>상장폐지·공개매수 등으로 거래가 끊긴 종목은 마지막 종가로 고정합니다.</li>
@@ -264,7 +274,8 @@ footer { color: var(--muted); font-size: 12.5px; margin-top: 18px; }
 <script>
 (function () {
   const D = JSON.parse(document.getElementById('data').textContent);
-  const daily = D.daily.map(([d, v]) => ({ d, v, t: Date.UTC(+d.slice(0, 4), +d.slice(4, 6) - 1, +d.slice(6, 8)) }));
+  const daily = D.daily.map(([d, v, pct, year]) => ({ d, v, pct, year, t: Date.UTC(+d.slice(0, 4), +d.slice(4, 6) - 1, +d.slice(6, 8)) }));
+  document.querySelectorAll('.hy').forEach(e => { e.textContent = D.hold_year; });
   const official = D.official.filter(o => o.trust === '공식');
   const fmtDate = d => `${d.slice(0, 4)}.${d.slice(4, 6)}.${d.slice(6, 8)}`;
   const jo = v => v.toLocaleString('ko-KR', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
@@ -279,13 +290,14 @@ footer { color: var(--muted); font-size: 12.5px; margin-top: 18px; }
   };
 
   // 머리말·핵심 지표
-  const last = daily[daily.length - 1], prev = daily[daily.length - 2], base = daily[0];
+  const last = daily[daily.length - 1];
+  const dayDiff = last.v - last.v / (1 + last.pct / 100);  // 같은 보유분끼리 비교한 전일 대비 금액
   const peak = daily.reduce((a, b) => (b.v > a.v ? b : a));
   document.getElementById('badge').textContent = `기준일 ${fmtDate(last.d)} 종가 · 업데이트 ${D.updated} KST`;
   const tiles = [
     ['최근 평가액', `${jo(last.v)}조 원`, fmtDate(last.d), ''],
-    ['전일 대비', arrow(last.v - prev.v) + pct((last.v / prev.v - 1) * 100), `${(last.v - prev.v > 0 ? '+' : '')}${jo(last.v - prev.v)}조 원`, cls(last.v - prev.v)],
-    ['2025년 말 대비', arrow(last.v - base.v) + pct((last.v / base.v - 1) * 100), `기준 ${jo(base.v)}조 원 (${fmtDate(base.d)})`, cls(last.v - base.v)],
+    ['전일 대비', arrow(last.pct) + pct(last.pct), `${dayDiff > 0 ? '+' : ''}${jo(dayDiff)}조 원`, cls(last.pct)],
+    [`${D.hold_year}년 말 대비`, arrow(D.base_pct) + pct(D.base_pct), `기준 ${jo(D.base_value)}조 원 (${fmtDate(D.base_date)})`, cls(D.base_pct)],
     ['기간 중 최고', `${jo(peak.v)}조 원`, fmtDate(peak.d), ''],
   ];
   const tilesEl = document.getElementById('tiles');
@@ -340,6 +352,13 @@ footer { color: var(--muted); font-size: 12.5px; margin-top: 18px; }
 
     const path = pts.map((p, i) => (i ? 'L' : 'M') + x(p.t).toFixed(1) + ' ' + y(p.v).toFixed(1)).join('');
     svg.append(sv('path', { d: path, fill: 'none', stroke: 'var(--s1)', 'stroke-width': 2, 'stroke-linejoin': 'round', 'stroke-linecap': 'round' }));
+    // 새 연말 공시로 보유 내역을 교체한 날
+    pts.forEach((p, i) => {
+      if (i && p.year !== pts[i - 1].year) {
+        svg.append(sv('line', { x1: x(p.t), x2: x(p.t), y1: T, y2: H - B, stroke: 'var(--muted)', 'stroke-width': 1, 'stroke-dasharray': '3 3' }));
+        const tx = sv('text', { x: x(p.t) + 4, y: T + 10 }); tx.textContent = `${p.year}년 말 공시 적용`; svg.append(tx);
+      }
+    });
     for (const o of offs) svg.append(sv('circle', { cx: x(o.t), cy: y(o.official), r: 4.5, fill: 'var(--s2)', stroke: 'var(--surface)', 'stroke-width': 2 }));
 
     const cross = sv('line', { y1: T, y2: H - B, stroke: 'var(--axis)', 'stroke-width': 1, visibility: 'hidden' });
@@ -360,8 +379,7 @@ footer { color: var(--muted); font-size: 12.5px; margin-top: 18px; }
         r2.append(k2, el('b', {}, `${jo(o.official)}조 원`), el('span', {}, '공시 월말값'));
         tip.append(r2);
       }
-      const i0 = daily.indexOf(p);
-      if (i0 > 0) tip.append(el('div', { class: 'muted' }, `전일 대비 ${pct((p.v / daily[i0 - 1].v - 1) * 100)}`));
+      if (p.pct !== null) tip.append(el('div', { class: 'muted' }, `전일 대비 ${pct(p.pct)}`));
       tip.style.display = 'block';
       const tw = tip.offsetWidth;
       tip.style.left = Math.max(0, Math.min(px + 12, W - tw)) + 'px';
@@ -401,15 +419,15 @@ footer { color: var(--muted); font-size: 12.5px; margin-top: 18px; }
     t.append(tb);
   };
   fillTable('dailyTable', ['날짜', '평가액(조 원)', '전일 대비'],
-    daily.map((p, i) => [fmtDate(p.d), jo(p.v), i ? { t: pct((p.v / daily[i - 1].v - 1) * 100), cls: cls(p.v - daily[i - 1].v) } : '-']).reverse());
+    daily.map(p => [fmtDate(p.d), jo(p.v), p.pct !== null ? { t: pct(p.pct), cls: cls(p.pct) } : '-']).reverse());
 
   document.getElementById('topSub').textContent = `전체 ${D.n_holdings.toLocaleString('ko-KR')}개 종목 중 최근 평가액 상위 ${D.top.length}개 · 단위: 조 원`;
-  fillTable('topTable', ['종목', '2025년 말', '최근', '변화율', '비중'],
+  fillTable('topTable', ['종목', `${D.hold_year}년 말`, '최근', '변화율', '비중'],
     D.top.map(r => [r.name + (r.stale ? ' (거래 종료)' : ''), jo(r.base / 1e4), jo(r.now / 1e4), { t: arrow(r.chg) + pct(r.chg), cls: cls(r.chg) }, r.w.toFixed(1) + '%']));
 
   fillTable('checkTable', ['월말', '추적값', '공시값', '커버율', '기준 대비', '출처'],
     D.official.map(o => [o.ym.slice(0, 4) + '.' + o.ym.slice(4), jo(o.tracked), jo(o.official), o.cover.toFixed(2) + '%',
-      o.ym === D.official[0].ym ? '기준' : (o.gap > 0 ? '+' : '') + o.gap.toFixed(2) + '%p', o.src + (o.trust === '공식' ? '' : ' · 참고용')]));
+      o.gap === null ? '-' : o.gap === 0 ? '기준' : (o.gap > 0 ? '+' : '') + o.gap.toFixed(2) + '%p', o.src + (o.trust === '공식' ? '' : ' · 참고용')]));
 
   // 국내 의결권 행사
   const V = D.votes;
@@ -434,7 +452,7 @@ footer { color: var(--muted); font-size: 12.5px; margin-top: 18px; }
   }
 
   document.getElementById('footer').textContent =
-    `데이터: 국민연금공단 국내주식 투자정보(2025.12.31), 금융위원회 주식시세정보(공공데이터포털)` +
+    `데이터: 국민연금 국내주식 투자정보(${D.hold_year}.12.31), 금융위원회 주식시세정보(공공데이터포털)` +
     (V ? ', 기금운용본부 국내 의결권 행사내역' : '') +
     (D.stale ? ` · 거래가 끊겨 마지막 종가로 고정된 종목 ${D.stale}개` : '');
 })();
