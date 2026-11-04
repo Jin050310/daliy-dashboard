@@ -10,21 +10,21 @@ CSV_ENCODING = "cp949"  # 이 파일은 UTF-8이 아니라 cp949라 지정이 �
 
 # 중간·결과 파일
 HOLDINGS_CLEAN = DATA / "holdings_clean.csv"
-LISTED_CSV = DATA / "listed_20251231.csv"
+LISTED_CSV = DATA / "listed_20251230.csv"
 MANUAL_MAP_CSV = DATA / "manual_map.csv"  # 사람이 확인한 매핑 (종목명, 종목코드)
 PRICES_CSV = DATA / "prices_20251230.csv"
 MAPPING_CSV = DATA / "mapping.csv"
 MAPPING_REVIEW_CSV = DATA / "mapping_review.csv"
 
 # 기준일: 이 날짜 기준 상장 종목 목록을 받아 매핑한다
-BASE_DATE = "20251231"
+BASE_DATE = "20251230"  # 상장 목록 기준일 = 연말 마지막 거래일 (12월 31일은 휴장)
 
 # 종가 기준일: 12월 31일은 증시 휴장일이라 종가가 없다. 연말 마지막 거래일(12월 30일)을 쓴다.
 PRICE_DATE = "20251230"
 
-# 검증 기준값 (조 원). 보도 기준 약 264조 원이므로,
-# 기금운용본부 월간 공시(2025년 12월 말)에서 정확한 값을 확인해 교체할 것.
-OFFICIAL_TOTAL_JO = 264.0
+# 검증 기준값 (조 원). 월간 공시에서 확인한 값이며,
+# 출처가 불확실하면 기금운용본부 월간 공시(2025년 12월 말)로 다시 확인할 것.
+OFFICIAL_TOTAL_JO = 263.7
 
 # 인증키는 파일에 쓰지 말고 환경변수로만 읽는다
 API_KEY_ENV = "DATA_GO_KR_KEY"
