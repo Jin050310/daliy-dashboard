@@ -29,4 +29,4 @@ API_KEY_ENV = "DATA_GO_KR_KEY"
 # 기본 주소(GetKrxListedInfoService_V2)는 포털 상세 페이지에서 확인한 값이다.
 # 마지막의 /getItemInfo(오퍼레이션 이름)는 확인하지 못한 값이므로,
 # 403/404가 계속되면 포털의 '활용명세(Swagger)'에서 실제 이름을 보고 바꿀 것.
-KRX_LISTED_URL = "https://apis.data.go.kr/1160100/GetKrxListedInfoService_V2/getItemInfo"
+KRX_LISTED_URL = "https://apis.data.go.kr/1160100/GetKrxListedInfoService_V2/getItemInfo_V2"
