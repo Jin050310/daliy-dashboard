@@ -83,14 +83,22 @@ python step8_monthly_check.py
 이 지표는 2025년 말 이후 매매를 반영하지 않으므로 차이가 나는 것이 정상입니다. 기준일 커버율(99.2%)에서 얼마나 벗어나는지로 매매 효과의 대략적인 크기를 봅니다.
 새 월말 공시가 나오면 `OFFICIAL_MONTHLY`에 한 줄 추가하세요. 지분 5% 이상 종목만 합친 보도 수치는 기준이 달라 넣으면 안 됩니다.
 
-### 7) 대시보드와 자동 업데이트
+### 7) 국내 의결권 행사내역
+```
+python fetch_votes.py
+```
+기금운용본부 홈페이지의 국내 의결권 행사내역(`config.VOTES_START` 이후 주총)을 모아 `data/votes_meetings.csv`, `data/votes_items.csv`에 저장합니다.
+이미 받은 주총은 건너뛰므로 처음에만 몇 분 걸리고 이후에는 새 주총만 받습니다. 해외 의결권은 다루지 않습니다.
+최근 공시는 안건마다 찬성·반대·중립·기권 비율 네 줄로 나오므로, 대시보드는 안건마다 결과 하나(찬성·반대·분할 등)로 정리해 보여 줍니다.
+
+### 8) 대시보드와 자동 업데이트
 ```
 python build_dashboard.py
 ```
 `site/index.html` 하나로 대시보드를 만듭니다(데이터 내장, 외부 라이브러리 없음).
 
 `.github/workflows/daily-update.yml`이 매 평일 오후 3시(KST)에 GitHub 서버에서
-`step6 -> step7 -> step8 -> build_dashboard`를 돌리고, 새 종가를 커밋한 뒤 GitHub Pages에 배포합니다.
+`step6 -> fetch_votes -> step7 -> step8 -> build_dashboard`를 돌리고, 새 종가·의결권을 커밋한 뒤 GitHub Pages에 배포합니다.
 PC를 켜 둘 필요가 없고, Pages 주소는 바뀌지 않습니다. 처음 한 번 저장소 설정이 필요합니다.
 - Settings > Secrets and variables > Actions: `DATA_GO_KR_KEY` 등록
 - Settings > Pages > Source: `GitHub Actions`

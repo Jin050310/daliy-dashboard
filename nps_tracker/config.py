@@ -54,6 +54,13 @@ OFFICIAL_MONTHLY = [
 ]
 MONTHLY_CHECK_CSV = DATA / "monthly_check.csv"
 
+# 국내 의결권 행사내역 (기금운용본부 > 기금공시 > 주주권 행사내역 > 국내)
+VOTES_START = "2026-01-01"  # 이 날짜 이후 주주총회만 모은다
+VOTES_LIST_URL = "https://fund.nps.or.kr/impa/edwmpblnt/empty/getOHEF0007M0.do"
+VOTES_DETAIL_URL = "https://fund.nps.or.kr/impa/edwmpblnt/getOHEF0010M0.do"
+VOTES_MEETINGS_CSV = DATA / "votes_meetings.csv"  # 주총 목록 (회사·일자·구분·안건 수)
+VOTES_ITEMS_CSV = DATA / "votes_items.csv"        # 안건별 행사내용 (찬성·반대 등)
+
 # 인증키는 파일에 쓰지 말고 환경변수로만 읽는다
 API_KEY_ENV = "DATA_GO_KR_KEY"
 

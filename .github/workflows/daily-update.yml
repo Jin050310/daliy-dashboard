@@ -44,21 +44,26 @@ jobs:
           DATA_GO_KR_KEY: ${{ secrets.DATA_GO_KR_KEY }}
         run: python step6_daily_prices.py
 
+      - name: 국내 의결권 행사내역 수집
+        # 기금운용본부 홈페이지가 잠시 응답하지 않아도 나머지는 진행한다
+        continue-on-error: true
+        run: python fetch_votes.py
+
       - name: 일별 평가액·월별 검증·대시보드 (step7, step8, build)
         run: |
           python step7_daily_value.py
           python step8_monthly_check.py
           python build_dashboard.py
 
-      - name: 새 종가 커밋
+      - name: 새 데이터 커밋
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add data/daily
+          git add data/daily data/votes_meetings.csv data/votes_items.csv
           if git diff --cached --quiet; then
-            echo "새 종가 없음"
+            echo "새 데이터 없음"
           else
-            git commit -m "data: 일별 종가 갱신 $(date +%Y-%m-%d)"
+            git commit -m "data: 일별 종가·의결권 갱신 $(date +%Y-%m-%d)"
             git push
           fi
 

@@ -2,10 +2,12 @@
 
     python build_dashboard.py
 
-입력: data/daily_value.csv (step7), data/latest_holdings.csv (step7), data/monthly_check.csv (step8)
+입력: data/daily_value.csv (step7), data/latest_holdings.csv (step7), data/monthly_check.csv (step8),
+      data/votes_meetings.csv, data/votes_items.csv (fetch_votes, 없으면 의결권 섹션을 뺀다)
 출력: site/index.html (데이터를 안에 담은 파일 하나. GitHub Pages로 그대로 배포한다)
 """
 import json
+import re
 import sys
 from datetime import datetime, timedelta, timezone
 
@@ -19,7 +21,50 @@ except Exception:
     pass
 
 TOP_N = 15  # 표에 보여 줄 상위 종목 수
+RECENT_OPPOSE = 20  # 의결권 섹션에 먼저 보여 줄 최근 반대 안건 수
 KST = timezone(timedelta(hours=9))
+PCT_RE = re.compile(r"\s*(\S+?)\(\s*([\d.]+)%\)")
+
+
+def decide(rows: list[str]) -> str:
+    """안건 하나의 행사내용 줄들을 결과 하나로 줄인다.
+
+    최근 공시는 안건마다 '찬성( 100.00%)', '반대(   0.00%)', '중립', '기권' 네 줄로 비율을 싣는다.
+    찬성과 반대가 둘 다 0보다 크면 '분할', 아니면 비율이 가장 큰 쪽이다. 비율이 없으면 그 글자 그대로다.
+    """
+    pct = {m.group(1): float(m.group(2)) for r in rows if (m := PCT_RE.match(r))}
+    if not pct:
+        return rows[0].strip()
+    if pct.get("찬성", 0) > 0 and pct.get("반대", 0) > 0:
+        return "분할"
+    return max(pct, key=pct.get)
+
+
+def votes_payload() -> dict | None:
+    if not (config.VOTES_MEETINGS_CSV.exists() and config.VOTES_ITEMS_CSV.exists()):
+        return None
+    meet = pd.read_csv(config.VOTES_MEETINGS_CSV, dtype=str, encoding="utf-8-sig").fillna("")
+    it = pd.read_csv(config.VOTES_ITEMS_CSV, dtype=str, encoding="utf-8-sig").fillna("")
+    keys = ["주총일자", "코드", "회사명", "구분", "의안번호", "의안내용"]
+    ag = it.groupby(keys, sort=False).agg(
+        행사=("행사내용", list), 사유=("반대사유", lambda s: next((x for x in s if x), ""))
+    ).reset_index()
+    ag["결과"] = ag["행사"].map(decide)
+    q = lambda d: d.str[:4] + "년 " + ((d.str[4:6].astype(int) - 1) // 3 + 1).astype(str) + "분기"
+    ag["분기"], meet["분기"] = q(ag["주총일자"]), q(meet["주총일자"])
+    quarters = []
+    for name, g in ag.groupby("분기"):
+        quarters.append({"q": name, "meetings": int((meet["분기"] == name).sum()), "items": int(len(g)),
+                         "oppose": int((g["결과"] == "반대").sum()), "split": int((g["결과"] == "분할").sum())})
+    opp = ag[ag["결과"] == "반대"].sort_values(["주총일자", "회사명"], ascending=[False, True])
+    return {
+        "start": config.VOTES_START,
+        "meetings": int(len(meet)), "items": int(len(ag)),
+        "oppose": int((ag["결과"] == "반대").sum()), "split": int((ag["결과"] == "분할").sum()),
+        "quarters": quarters,
+        "opposed": [{"d": r["주총일자"], "co": r["회사명"], "kind": r["구분"], "item": r["의안내용"], "why": r["사유"]}
+                    for _, r in opp.iterrows()],
+    }
 
 
 def main() -> None:
@@ -45,6 +90,8 @@ def main() -> None:
             for _, r in h.head(TOP_N).iterrows()
         ],
         "n_holdings": int(len(h)),
+        "votes": votes_payload(),
+        "recent_oppose": RECENT_OPPOSE,
     }
     payload = json.dumps(data, ensure_ascii=False).replace("</", "<\\/")
     config.SITE_DIR.mkdir(parents=True, exist_ok=True)
@@ -129,6 +176,13 @@ th { color: var(--ink-2); font-weight: 550; font-size: 12.5px; }
 th:first-child, td:first-child { text-align: left; }
 .tbl { overflow-x: auto; }
 details { margin-top: 10px; } summary { cursor: pointer; color: var(--ink-2); font-size: 13px; }
+.card h3 { font-size: 14px; margin: 18px 0 6px; color: var(--ink); }
+.vstats { display: flex; flex-wrap: wrap; gap: 8px 24px; margin: 4px 0 2px; }
+.vstats div { font-size: 13px; color: var(--ink-2); }
+.vstats b { display: block; font-size: 20px; color: var(--ink); font-weight: 650; }
+table.wrap td:last-child, table.wrap td:nth-child(3) { white-space: normal; text-align: left; min-width: 160px; }
+table.wrap th:nth-child(2), table.wrap td:nth-child(2), table.wrap th:nth-child(3), table.wrap th:last-child { text-align: left; }
+table.wrap td { vertical-align: top; }
 .notes { color: var(--ink-2); font-size: 13.5px; } .notes li { margin: 4px 0; }
 .muted { color: var(--muted); }
 footer { color: var(--muted); font-size: 12.5px; margin-top: 18px; }
@@ -179,6 +233,17 @@ footer { color: var(--muted); font-size: 12.5px; margin-top: 18px; }
     <h2>공시값과 비교</h2>
     <p class="sub">2025년 말 보유분을 그대로 들고 있다고 가정한 값과 실제 공시값의 차이입니다. 기준일 차이(커버율)에서 벗어난 만큼이 그 뒤 매매 효과의 대략적인 크기입니다.</p>
     <div class="tbl"><table id="checkTable"></table></div>
+  </section>
+
+  <section class="card" id="votes" hidden>
+    <h2>국내 의결권 행사</h2>
+    <p class="sub" id="votesSub"></p>
+    <div class="vstats" id="voteStats"></div>
+    <h3>분기별 요약</h3>
+    <div class="tbl"><table id="voteQuarter"></table></div>
+    <h3 id="oppTitle"></h3>
+    <div class="tbl"><table id="voteRecent" class="wrap"></table></div>
+    <details><summary id="oppAllSummary"></summary><div class="tbl"><table id="voteAll" class="wrap"></table></div></details>
   </section>
 
   <section class="card notes">
@@ -346,8 +411,31 @@ footer { color: var(--muted); font-size: 12.5px; margin-top: 18px; }
     D.official.map(o => [o.ym.slice(0, 4) + '.' + o.ym.slice(4), jo(o.tracked), jo(o.official), o.cover.toFixed(2) + '%',
       o.ym === D.official[0].ym ? '기준' : (o.gap > 0 ? '+' : '') + o.gap.toFixed(2) + '%p', o.src + (o.trust === '공식' ? '' : ' · 참고용')]));
 
+  // 국내 의결권 행사
+  const V = D.votes;
+  if (V) {
+    document.getElementById('votes').hidden = false;
+    document.getElementById('votesSub').textContent =
+      `${V.start.replace(/-/g, '.')} 이후 국민연금이 공시한 국내 주주총회 의결권 행사내역입니다. 안건마다 결과 하나로 정리했습니다(찬성과 반대로 나눠 행사한 안건은 '분할').`;
+    const share = n => (n / V.items * 100).toFixed(1) + '%';
+    const vs = document.getElementById('voteStats');
+    for (const [k, v] of [['주주총회', V.meetings.toLocaleString('ko-KR') + '건'], ['안건', V.items.toLocaleString('ko-KR') + '건'],
+                          ['반대', `${V.oppose.toLocaleString('ko-KR')}건 (${share(V.oppose)})`], ['분할 행사', `${V.split.toLocaleString('ko-KR')}건 (${share(V.split)})`]]) {
+      const d = el('div'); d.append(el('b', {}, v), document.createTextNode(k)); vs.append(d);
+    }
+    fillTable('voteQuarter', ['분기', '주주총회', '안건', '반대', '반대율', '분할'],
+      V.quarters.map(q => [q.q, q.meetings.toLocaleString('ko-KR'), q.items.toLocaleString('ko-KR'),
+        q.oppose.toLocaleString('ko-KR'), (q.oppose / q.items * 100).toFixed(1) + '%', q.split.toLocaleString('ko-KR')]));
+    const oppRow = o => [fmtDate(o.d), o.co.replace(/\(주\)|㈜/g, '').trim(), o.item, o.why || '-'];
+    document.getElementById('oppTitle').textContent = `최근 반대 안건 ${Math.min(D.recent_oppose, V.opposed.length)}건`;
+    fillTable('voteRecent', ['주총일', '회사', '안건', '반대 사유'], V.opposed.slice(0, D.recent_oppose).map(oppRow));
+    document.getElementById('oppAllSummary').textContent = `반대 안건 전체 보기 (${V.opposed.length.toLocaleString('ko-KR')}건)`;
+    fillTable('voteAll', ['주총일', '회사', '안건', '반대 사유'], V.opposed.map(oppRow));
+  }
+
   document.getElementById('footer').textContent =
     `데이터: 국민연금공단 국내주식 투자정보(2025.12.31), 금융위원회 주식시세정보(공공데이터포털)` +
+    (V ? ', 기금운용본부 국내 의결권 행사내역' : '') +
     (D.stale ? ` · 거래가 끊겨 마지막 종가로 고정된 종목 ${D.stale}개` : '');
 })();
 </script>
