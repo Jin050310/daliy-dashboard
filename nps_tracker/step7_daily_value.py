@@ -1,0 +1,171 @@
+"""7단계: 2025년 말 공시 보유분을 매일 종가로 평가한다.
+
+    python step7_daily_value.py
+
+입력: data/shares.csv (step5), data/prices_20251230.csv, data/daily_prices.csv (step6)
+출력: data/daily_value.csv (일별 합계), data/share_events.csv (주식 수 변동 사건)
+
+    일별 평가액 = 보유주식수 x 분할 보정 배수 x 그날 종가
+
+- 이 API 종가는 수정주가가 아니므로 주식 수 변동을 보유주식수에 직접 반영한다.
+  - 분할·병합: 상장주식수와 종가가 같은 날 반대로 움직여 서로 상쇄된 경우, 그날 반영한다.
+  - 무상증자: 권리락일에 가격이 먼저 떨어지고 신주는 몇 주 뒤 상장된다. 신주 상장일에서
+    거슬러 올라가 가격이 그만큼 떨어진 날을 찾으면, 그 권리락일부터 반영한다.
+- 주식으로 교부되는 합병(config.MERGERS)은 신주 상장일부터 존속 종목 주식으로 바꿔 평가한다.
+- 유상증자처럼 그 밖의 변동은 반영하지 않고 share_events.csv에 남긴다.
+- 종가가 끊긴 종목(상장폐지·합병·거래정지)은 마지막 종가로 고정한다.
+"""
+import sys
+
+import numpy as np
+import pandas as pd
+
+import config
+
+try:
+    sys.stdout.reconfigure(encoding="utf-8")
+except Exception:
+    pass
+
+EVENT_RATIO = 1.3   # 상장주식수가 하루 사이 이 배수 이상 바뀌면 사건으로 본다
+LIMIT_MOVE = 0.3    # 국내 가격제한폭(±30%). 이를 넘는 하루 변동은 보정 누락 의심
+BONUS_LOOKBACK = 60  # 무상증자 신주 상장일에서 권리락일을 찾아 거슬러 올라가는 최대 거래일 수
+
+
+def offsets(sr: float, pr: float) -> bool:
+    """가격 변동이 주식 수 변동을 상쇄하는가.
+
+    주식수배율 x 종가배율이 1에 가깝되, 그 차이가 주식 수 변동 폭의 절반 이하이고
+    하루 가격제한폭 안이어야 한다. (유상증자 신주 상장처럼 가격이 그대로면 거짓)
+    """
+    gap = abs(np.log(sr * pr))
+    return gap <= min(np.log(1 + LIMIT_MOVE), 0.5 * abs(np.log(sr)))
+
+
+def find_adjustments(p: pd.DataFrame) -> pd.DataFrame:
+    """종목·날짜별 보정배율과 사건 목록을 만든다. p는 srtnCd, basDt 순으로 정렬돼 있어야 한다."""
+    p["보정배율"] = 1.0
+    events = []
+    for code, grp in p.groupby("srtnCd", sort=False):
+        idx = grp.index.to_list()
+        for k, i in enumerate(idx):
+            sr, pr = p.at[i, "주식수배율"], p.at[i, "종가배율"]
+            if np.isnan(sr) or (1 / EVENT_RATIO < sr < EVENT_RATIO):
+                continue
+            row = {"srtnCd": code, "itmsNm": p.at[i, "itmsNm"], "basDt": p.at[i, "basDt"],
+                   "주식수배율": sr, "종가배율": pr, "반영일": "", "처리": "미반영(확인 필요)"}
+            if offsets(sr, pr):
+                p.at[i, "보정배율"] *= sr
+                row.update(반영일=row["basDt"], 처리="자동 반영(분할·병합)")
+            elif sr > 1:
+                # 무상증자: 신주 상장 전에 가격이 1/sr 근처로 떨어진 권리락일을 찾는다
+                best = None
+                for j in reversed(idx[max(0, k - BONUS_LOOKBACK):k]):
+                    pj = p.at[j, "종가배율"]
+                    if not np.isnan(pj) and pj < 1 - LIMIT_MOVE + 0.05 and offsets(sr, pj):
+                        if best is None or abs(np.log(sr * pj)) < abs(np.log(sr * p.at[best, "종가배율"])):
+                            best = j
+                if best is not None:
+                    p.at[best, "보정배율"] *= sr
+                    row.update(반영일=p.at[best, "basDt"], 처리="자동 반영(무상증자, 권리락일)")
+            events.append(row)
+    return pd.DataFrame(events)
+
+
+def load_prices(held: set[str]) -> pd.DataFrame:
+    base = pd.read_csv(config.PRICES_CSV, dtype=str, encoding="utf-8-sig")
+    daily = pd.read_csv(config.DAILY_PRICES_CSV, dtype=str, encoding="utf-8-sig")
+    cols = ["basDt", "srtnCd", "itmsNm", "clpr", "lstgStCnt"]
+    p = pd.concat([base[cols], daily[cols]], ignore_index=True)
+    p = p[p["srtnCd"].isin(held)].drop_duplicates(["basDt", "srtnCd"])
+    p["clpr"] = pd.to_numeric(p["clpr"])
+    p["lstgStCnt"] = pd.to_numeric(p["lstgStCnt"])
+    return p.sort_values(["srtnCd", "basDt"]).reset_index(drop=True)
+
+
+def main() -> None:
+    for f in (config.SHARES_CSV, config.PRICES_CSV, config.DAILY_PRICES_CSV):
+        if not f.exists():
+            raise SystemExit(f"파일이 없습니다: {f} (먼저 step5, fetch_prices, step6을 실행하세요)")
+    sh = pd.read_csv(config.SHARES_CSV, dtype={"종목코드": str}, encoding="utf-8-sig")
+    shares = sh.set_index("종목코드")["보유주식수"]
+    p = load_prices(set(shares.index) | {to for _, to, _, _ in config.MERGERS})
+
+    # 1) 주식 수 변동 사건 찾기
+    g = p.groupby("srtnCd")
+    p["주식수배율"] = p["lstgStCnt"] / g["lstgStCnt"].shift()
+    p["종가배율"] = p["clpr"] / g["clpr"].shift()
+    ev = find_adjustments(p)
+    p["누적배율"] = p.groupby("srtnCd")["보정배율"].cumprod()
+
+    ev = ev.merge(sh[["종목코드", "평가액_억"]], left_on="srtnCd", right_on="종목코드", how="left")
+    ev[["srtnCd", "itmsNm", "basDt", "주식수배율", "종가배율", "반영일", "처리", "평가액_억"]].round(4).to_csv(
+        config.SHARE_EVENTS_CSV, index=False, encoding="utf-8-sig"
+    )
+
+    # 2) 날짜 x 종목 표로 펼치고, 종가가 없는 날은 마지막 종가로 채운다
+    price = p.pivot(index="basDt", columns="srtnCd", values="clpr").sort_index()
+    mult = p.pivot(index="basDt", columns="srtnCd", values="누적배율").sort_index()
+    stale = price.isna()
+    price = price.ffill()
+    mult = mult.ffill().fillna(1.0)
+    held_shares = shares.reindex(price.columns).fillna(0)
+    value = price * mult * held_shares  # 원
+
+    # 합병: 신주 상장일부터 소멸 종목 보유분 = 보유주식수 x 교부비율 x 존속 종목 종가 (이후 분할 보정 포함)
+    for frm, to, ratio, eff in config.MERGERS:
+        if frm not in price.columns:
+            continue
+        if to not in price.columns:
+            raise SystemExit(f"합병 존속 종목 {to}의 종가가 없습니다. step6을 다시 실행하세요.")
+        after = price.index >= eff
+        to_mult = mult[to] / mult.loc[after, to].iloc[0]
+        value.loc[after, frm] = shares[frm] * ratio * price.loc[after, to] * to_mult[after]
+        stale.loc[after, frm] = stale.loc[after, to]
+
+    total = value.sum(axis=1) / 1e12  # 조 원
+    out = pd.DataFrame({
+        "basDt": total.index,
+        "평가액_조": total.round(4).values,
+        "전일대비_%": (total.pct_change() * 100).round(3).values,
+        "기준일대비_%": ((total / total.iloc[0] - 1) * 100).round(3).values,
+        "종가고정_종목수": stale.sum(axis=1).values,
+    })
+    out.to_csv(config.DAILY_VALUE_CSV, index=False, encoding="utf-8-sig")
+
+    # 3) 결과와 점검
+    base_eok = sh["평가액_억"].sum()
+    print("=== 일별 평가액 (2025년 말 공시 보유분 기준) ===")
+    print(f"기준일 {out['basDt'].iloc[0]}: {out['평가액_조'].iloc[0]:.2f}조 원 (공시 평가액 합계 {base_eok / 1e4:.2f}조 원)")
+    print(f"최근일 {out['basDt'].iloc[-1]}: {out['평가액_조'].iloc[-1]:.2f}조 원 (기준일 대비 {out['기준일대비_%'].iloc[-1]:+.2f}%)")
+    print(f"기간 중 최고 {out['평가액_조'].max():.2f}조 원 ({out.loc[out['평가액_조'].idxmax(), 'basDt']}), "
+          f"최저 {out['평가액_조'].min():.2f}조 원 ({out.loc[out['평가액_조'].idxmin(), 'basDt']})")
+
+    print(f"\n주식 수 변동 사건 {len(ev)}건:")
+    print(ev["처리"].value_counts().to_string())
+    todo = ev[ev["처리"].str.startswith("미반영")].sort_values("평가액_억", ascending=False)
+    if not todo.empty:
+        print("미반영 사건 (평가액 상위 10개):")
+        print(todo[["itmsNm", "basDt", "주식수배율", "종가배율", "평가액_억"]].round(3).head(10).to_string(index=False))
+    print(f"최근일 종가 고정(종가 끊김) 종목: {int(out['종가고정_종목수'].iloc[-1])}개")
+
+    print("\n=== 점검: 전일 대비 큰 변동일 (합계 ±3% 초과) ===")
+    big_days = out[out["전일대비_%"].abs() > 3]
+    print(big_days.to_string(index=False) if not big_days.empty else "없음")
+
+    # 보정 후에도 하루 ±30%를 넘게 움직인 종목은 보정 누락 가능성이 있다
+    v_ratio = (value / value.shift()).stack().dropna()
+    sus = v_ratio[(v_ratio > 1 + LIMIT_MOVE + 0.01) | (v_ratio < 1 - LIMIT_MOVE - 0.01)]
+    print(f"\n=== 점검: 보정 후에도 하루 ±{LIMIT_MOVE:.0%}를 넘은 종목·날짜: {len(sus)}건 ===")
+    if len(sus):
+        s = sus.rename("배율").reset_index()
+        s["평가액_억"] = s["srtnCd"].map(sh.set_index("종목코드")["평가액_억"])
+        s["종목명"] = s["srtnCd"].map(sh.set_index("종목코드")["종목명"])
+        print(s.sort_values("평가액_억", ascending=False)[["종목명", "basDt", "배율", "평가액_억"]]
+              .round(3).head(15).to_string(index=False))
+
+    print(f"\n저장: {config.DAILY_VALUE_CSV}\n저장: {config.SHARE_EVENTS_CSV}")
+
+
+if __name__ == "__main__":
+    main()

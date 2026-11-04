@@ -4,3 +4,9 @@ __pycache__/
 data/holdings_clean.csv
 data/listed_*.csv
 data/mapping*.csv
+data/prices_*.csv
+data/shares.csv
+data/daily_prices.csv
+data/daily_value.csv
+data/share_events.csv
+data/monthly_check.csv

@@ -45,8 +45,15 @@ def fetch_all(url: str, params: dict, rows_per_page: int = 1000, pause: float = 
             {"serviceKey": key, "resultType": "json", "numOfRows": rows_per_page, "pageNo": page}
         )
         r = None
-        for attempt in range(4):  # 서버가 잠깐 불안정(5xx)하면 잠시 후 다시 시도
-            r = requests.get(url, params=p, timeout=60)
+        for attempt in range(4):  # 서버가 잠깐 불안정(5xx·연결 끊김)하면 잠시 후 다시 시도
+            try:
+                r = requests.get(url, params=p, timeout=60)
+            except requests.RequestException as e:
+                # 예외 메시지에는 주소(=인증키)가 들어가므로 종류 이름만 남긴다
+                if attempt == 3:
+                    raise SystemExit(f"연결 실패({type(e).__name__}): 네트워크나 서버 상태를 확인하세요.") from None
+                time.sleep(5 * (attempt + 1))
+                continue
             if r.status_code < 500:
                 break
             time.sleep(3 * (attempt + 1))
