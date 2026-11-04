@@ -2,7 +2,7 @@
 
     python step4_map_codes.py
 
-입력: data/holdings_clean.csv (step1), data/listed_20251231.csv (fetch_listed.py)
+입력: data/holdings_clean.csv (step1), data/listed_20251230.csv (fetch_listed.py)
       data/manual_map.csv (선택) - 사람이 확인한 매핑. 컬럼: 종목명,종목코드
 출력: data/mapping.csv, data/mapping_review.csv(사람이 확인할 목록)
 

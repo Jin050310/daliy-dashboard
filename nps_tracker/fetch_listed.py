@@ -1,4 +1,4 @@
-"""기준일(config.BASE_DATE)의 KRX 상장 종목 목록을 받아 data/listed_20251231.csv로 저장한다.
+"""기준일(config.BASE_DATE)의 KRX 상장 종목 목록을 받아 data/listed_20251230.csv로 저장한다.
 
     python fetch_listed.py
 """

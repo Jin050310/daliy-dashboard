@@ -10,13 +10,13 @@ CSV_ENCODING = "cp949"  # 이 파일은 UTF-8이 아니라 cp949라 지정이 �
 
 # 중간·결과 파일
 HOLDINGS_CLEAN = DATA / "holdings_clean.csv"
-LISTED_CSV = DATA / "listed_20251231.csv"
+LISTED_CSV = DATA / "listed_20251230.csv"
 MANUAL_MAP_CSV = DATA / "manual_map.csv"  # 사람이 확인한 매핑 (종목명, 종목코드)
 MAPPING_CSV = DATA / "mapping.csv"
 MAPPING_REVIEW_CSV = DATA / "mapping_review.csv"
 
 # 기준일: 이 날짜 기준 상장 종목 목록을 받아 매핑한다
-BASE_DATE = "20251231"
+BASE_DATE = "20251230"  # 12/31은 연말 휴장일이라 마지막 영업일(12/30) 기준 목록을 받는다
 
 # 검증 기준값 (조 원). 보도 기준 약 264조 원이므로,
 # 기금운용본부 월간 공시(2025년 12월 말)에서 정확한 값을 확인해 교체할 것.
