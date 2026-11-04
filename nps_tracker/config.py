@@ -38,9 +38,9 @@ BASE_DATE = "20251230"  # 상장 목록 기준일 = 연말 마지막 거래일 (
 # 종가 기준일: 12월 31일은 증시 휴장일이라 종가가 없다. 연말 마지막 거래일(12월 30일)을 쓴다.
 PRICE_DATE = "20251230"
 
-# 검증 기준값 (조 원). 월간 공시에서 확인한 값이며,
-# 출처가 불확실하면 기금운용본부 월간 공시(2025년 12월 말)로 다시 확인할 것.
-OFFICIAL_TOTAL_JO = 263.7
+# 검증 기준값 (조 원). 2025년 말 국내주식 평가액 263,737십억 원
+# (기금운용본부 '자산군별 운용규모', fetch_official.py로 확인).
+OFFICIAL_TOTAL_JO = 263.737
 
 # 8단계 월별 검증: 공시·보도된 국민연금 국내주식 월말 평가액 (조 원)
 # (월, 금액, 출처, 신뢰). 신뢰가 "참고"인 값은 출처가 불분명해 판정에서 뺀다.
@@ -53,6 +53,12 @@ OFFICIAL_MONTHLY = [
     ("202608", 433.8, "기금운용본부 포트폴리오 현황", "공식"),
 ]
 MONTHLY_CHECK_CSV = DATA / "monthly_check.csv"
+
+# 기금운용본부 홈페이지의 국내주식 평가액 자동 수집 (fetch_official.py)
+# 홈페이지는 올해 값이 최신 달 값으로 매달 덮어써지므로, 매일 읽어 새 달이 나오면 기록해 둔다.
+OFFICIAL_SIZE_URL = "https://fund.nps.or.kr/oprtprcn/ivsmprcn/chartOHED0016P0.do"  # 연도별 자산군 규모(십억 원)
+OFFICIAL_MONTH_URL = "https://fund.nps.or.kr/oprtprcn/ivsmprcn/getOHED0016M0.do"   # 'YYYY년 M월 말 기준' 표시
+OFFICIAL_AUTO_CSV = DATA / "official_monthly.csv"  # 자동 수집 결과. OFFICIAL_MONTHLY보다 우선한다
 
 # 국내 의결권 행사내역 (기금운용본부 > 기금공시 > 주주권 행사내역 > 국내)
 VOTES_START = "2026-01-01"  # 이 날짜 이후 주주총회만 모은다

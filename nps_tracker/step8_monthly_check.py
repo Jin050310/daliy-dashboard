@@ -2,7 +2,7 @@
 
     python step8_monthly_check.py
 
-입력: data/daily_value.csv (step7), config.OFFICIAL_MONTHLY
+입력: data/daily_value.csv (step7), config.OFFICIAL_MONTHLY, data/official_monthly.csv (fetch_official, 같은 달이면 우선)
 출력: data/monthly_check.csv
 
 이 지표는 2025년 말 보유분을 그대로 들고 있다고 가정하므로, 공시값과의 차이는
@@ -23,13 +23,23 @@ except Exception:
     pass
 
 
+def official_list() -> list[tuple]:
+    """수동 목록에 자동 수집 값을 덮어쓴 (월, 금액, 출처, 신뢰) 목록."""
+    merged = {ym: (ym, val, src, trust) for ym, val, src, trust in config.OFFICIAL_MONTHLY}
+    if config.OFFICIAL_AUTO_CSV.exists():
+        auto = pd.read_csv(config.OFFICIAL_AUTO_CSV, dtype={"월": str}, encoding="utf-8-sig")
+        for _, r in auto.iterrows():
+            merged[r["월"]] = (r["월"], float(r["공시값_조"]), r["출처"], "공식")
+    return [merged[k] for k in sorted(merged)]
+
+
 def main() -> None:
     if not config.DAILY_VALUE_CSV.exists():
         raise SystemExit(f"파일이 없습니다: {config.DAILY_VALUE_CSV} (먼저 step7을 실행하세요)")
     v = pd.read_csv(config.DAILY_VALUE_CSV, dtype={"basDt": str}, encoding="utf-8-sig")
 
     rows = []
-    for ym, official, src, trust in config.OFFICIAL_MONTHLY:
+    for ym, official, src, trust in official_list():
         month_days = v[v["basDt"].str[:6] == ym]
         if month_days.empty:
             continue
@@ -41,7 +51,7 @@ def main() -> None:
         })
     df = pd.DataFrame(rows)
     if df.empty or df.iloc[0]["월"] != "202512":
-        raise SystemExit("2025년 12월 공시값(기준)이 없습니다. config.OFFICIAL_MONTHLY를 확인하세요.")
+        raise SystemExit("2025년 12월 공시값(기준)이 없습니다. config.OFFICIAL_MONTHLY나 fetch_official을 확인하세요.")
 
     base_cover = df.iloc[0]["커버율_%"]
     df["기준대비_추가차이_%p"] = (df["커버율_%"] - base_cover).round(2)

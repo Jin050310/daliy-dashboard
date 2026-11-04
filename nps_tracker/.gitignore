@@ -13,4 +13,4 @@ data/latest_holdings.csv
 site/
 # 자동 업데이트(GitHub Actions)가 쓰므로 저장소에 올리는 파일:
 #   data/shares.csv, data/prices_20251230.csv, data/daily/*.csv,
-#   data/votes_meetings.csv, data/votes_items.csv
+#   data/votes_meetings.csv, data/votes_items.csv, data/official_monthly.csv

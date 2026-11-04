@@ -81,7 +81,9 @@ python step8_monthly_check.py
 ```
 `config.py`의 `OFFICIAL_MONTHLY`(공시·보도된 월말 국내주식 평가액)와 추적값을 비교해 `data/monthly_check.csv`를 만듭니다.
 이 지표는 2025년 말 이후 매매를 반영하지 않으므로 차이가 나는 것이 정상입니다. 기준일 커버율(99.2%)에서 얼마나 벗어나는지로 매매 효과의 대략적인 크기를 봅니다.
-새 월말 공시가 나오면 `OFFICIAL_MONTHLY`에 한 줄 추가하세요. 지분 5% 이상 종목만 합친 보도 수치는 기준이 달라 넣으면 안 됩니다.
+`python fetch_official.py`가 기금운용본부 홈페이지의 최신 월말 국내주식 평가액을 읽어 `data/official_monthly.csv`에 쌓습니다.
+홈페이지는 올해 값을 매달 덮어쓰므로 지난 달 값은 이 파일에만 남습니다. 자동 업데이트가 매일 실행하므로 새 달 값은 저절로 추가됩니다.
+홈페이지에서 사라진 과거 달 값은 `OFFICIAL_MONTHLY`에 손으로 넣습니다(같은 달이면 자동 수집 값이 우선). 지분 5% 이상 종목만 합친 보도 수치는 기준이 달라 넣으면 안 됩니다.
 
 ### 7) 국내 의결권 행사내역
 ```
@@ -98,7 +100,7 @@ python build_dashboard.py
 `site/index.html` 하나로 대시보드를 만듭니다(데이터 내장, 외부 라이브러리 없음).
 
 `.github/workflows/daily-update.yml`이 매 평일 오후 3시(KST)에 GitHub 서버에서
-`step6 -> fetch_votes -> step7 -> step8 -> build_dashboard`를 돌리고, 새 종가·의결권을 커밋한 뒤 GitHub Pages에 배포합니다.
+`step6 -> fetch_votes -> fetch_official -> step7 -> step8 -> build_dashboard`를 돌리고, 새 데이터를 커밋한 뒤 GitHub Pages에 배포합니다.
 PC를 켜 둘 필요가 없고, Pages 주소는 바뀌지 않습니다. 처음 한 번 저장소 설정이 필요합니다.
 - Settings > Secrets and variables > Actions: `DATA_GO_KR_KEY` 등록
 - Settings > Pages > Source: `GitHub Actions`
