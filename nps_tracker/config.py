@@ -10,13 +10,17 @@ CSV_ENCODING = "cp949"  # 이 파일은 UTF-8이 아니라 cp949라 지정이 �
 
 # 중간·결과 파일
 HOLDINGS_CLEAN = DATA / "holdings_clean.csv"
-LISTED_CSV = DATA / "listed_20251230.csv"
+LISTED_CSV = DATA / "listed_20251231.csv"
 MANUAL_MAP_CSV = DATA / "manual_map.csv"  # 사람이 확인한 매핑 (종목명, 종목코드)
+PRICES_CSV = DATA / "prices_20251230.csv"
 MAPPING_CSV = DATA / "mapping.csv"
 MAPPING_REVIEW_CSV = DATA / "mapping_review.csv"
 
 # 기준일: 이 날짜 기준 상장 종목 목록을 받아 매핑한다
-BASE_DATE = "20251230"  # 12/31은 연말 휴장일이라 마지막 영업일(12/30) 기준 목록을 받는다
+BASE_DATE = "20251231"
+
+# 종가 기준일: 12월 31일은 증시 휴장일이라 종가가 없다. 연말 마지막 거래일(12월 30일)을 쓴다.
+PRICE_DATE = "20251230"
 
 # 검증 기준값 (조 원). 보도 기준 약 264조 원이므로,
 # 기금운용본부 월간 공시(2025년 12월 말)에서 정확한 값을 확인해 교체할 것.
@@ -26,7 +30,9 @@ OFFICIAL_TOTAL_JO = 264.0
 API_KEY_ENV = "DATA_GO_KR_KEY"
 
 # 금융위원회_KRX상장종목정보 요청 주소.
-# 기본 주소(GetKrxListedInfoService_V2)는 포털 상세 페이지에서 확인한 값이다.
-# 마지막의 /getItemInfo(오퍼레이션 이름)는 확인하지 못한 값이므로,
-# 403/404가 계속되면 포털의 '활용명세(Swagger)'에서 실제 이름을 보고 바꿀 것.
+# 기본 주소(GetKrxListedInfoService_V2)와 오퍼레이션 이름(/getItemInfo_V2)은
+# 포털 상세 페이지의 활용명세(Swagger)에서 직접 확인한 값이다.
 KRX_LISTED_URL = "https://apis.data.go.kr/1160100/GetKrxListedInfoService_V2/getItemInfo_V2"
+
+# 금융위원회_주식시세정보 요청 주소 (포털 활용명세에서 확인한 값)
+STOCK_PRICE_URL = "https://apis.data.go.kr/1160100/GetStockSecuritiesInfoService_V2/getStockPriceInfo_V2"

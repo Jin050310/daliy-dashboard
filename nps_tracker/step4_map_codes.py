@@ -2,7 +2,7 @@
 
     python step4_map_codes.py
 
-입력: data/holdings_clean.csv (step1), data/listed_20251230.csv (fetch_listed.py)
+입력: data/holdings_clean.csv (step1), data/listed_20251231.csv (fetch_listed.py)
       data/manual_map.csv (선택) - 사람이 확인한 매핑. 컬럼: 종목명,종목코드
 출력: data/mapping.csv, data/mapping_review.csv(사람이 확인할 목록)
 
@@ -52,9 +52,7 @@ def clean_code(x) -> str:
 
 
 def build_index(listed: pd.DataFrame):
-    name_col = pick(listed, NAME_COLS, "종목명")
-    code_col = pick(listed, CODE_COLS, "종목코드")
-    mkt_col = pick(listed, MKT_COLS, "시장구분", required=False)
+    name_col, code_col, mkt_col = "_name", "_code", "_mkt"
     exact: dict[str, set] = {}
     norm: dict[str, set] = {}
     market: dict[str, str] = {}
@@ -103,7 +101,15 @@ def main() -> None:
         if not p.exists():
             raise SystemExit(f"파일이 없습니다: {p} (먼저 step1, fetch_listed를 실행하세요)")
     hold = pd.read_csv(config.HOLDINGS_CLEAN, encoding="utf-8-sig")
-    listed = pd.read_csv(config.LISTED_CSV, dtype=str, encoding="utf-8-sig")
+    sources = [pd.read_csv(config.LISTED_CSV, dtype=str, encoding="utf-8-sig")]
+    if config.PRICES_CSV.exists():  # 우선주까지 들어 있는 시세 목록을 보조 이름표로 쓴다
+        sources.append(pd.read_csv(config.PRICES_CSV, dtype=str, encoding="utf-8-sig"))
+    parts = []
+    for df in sources:
+        n, c = pick(df, NAME_COLS, "종목명"), pick(df, CODE_COLS, "종목코드")
+        m = pick(df, MKT_COLS, "시장구분", required=False)
+        parts.append(pd.DataFrame({"_name": df[n], "_code": df[c], "_mkt": df[m] if m else ""}))
+    listed = pd.concat(parts, ignore_index=True).drop_duplicates()
     exact, norm, market = build_index(listed)
     norm_keys = list(norm.keys())
     manual = load_manual()

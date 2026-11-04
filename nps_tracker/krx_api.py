@@ -44,7 +44,12 @@ def fetch_all(url: str, params: dict, rows_per_page: int = 1000, pause: float = 
         p.update(
             {"serviceKey": key, "resultType": "json", "numOfRows": rows_per_page, "pageNo": page}
         )
-        r = requests.get(url, params=p, timeout=30)
+        r = None
+        for attempt in range(4):  # 서버가 잠깐 불안정(5xx)하면 잠시 후 다시 시도
+            r = requests.get(url, params=p, timeout=60)
+            if r.status_code < 500:
+                break
+            time.sleep(3 * (attempt + 1))
         # raise_for_status()는 오류 메시지에 주소(=인증키)가 들어가므로 쓰지 않는다
         if r.status_code != 200:
             # 서버가 알려 주는 거절 사유(본문)를 보여 준다. 인증키는 본문에 들어 있지 않다.
