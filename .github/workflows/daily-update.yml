@@ -1,4 +1,4 @@
-# 매 평일 오후 3시(KST)에 일별 종가를 받아 대시보드를 다시 만들고 GitHub Pages에 배포한다.
+# 매 평일 오후 3시 30분(KST)에 일별 종가를 받아 대시보드를 다시 만들고 GitHub Pages에 배포한다.
 # 필요한 설정 (저장소 Settings):
 #   - Secrets and variables > Actions > New repository secret: DATA_GO_KR_KEY (공공데이터포털 Decoding 인증키)
 #   - Pages > Build and deployment > Source: GitHub Actions
@@ -6,7 +6,7 @@ name: daily-update
 
 on:
   schedule:
-    - cron: "0 6 * * 1-5"  # UTC 06:00 = KST 15:00 (종가는 다음 영업일 오후 1시 이후 공개)
+    - cron: "30 6 * * 1-5"  # UTC 06:30 = KST 15:30 (종가는 다음 영업일 오후 1시 이후 공개)
   workflow_dispatch:        # Actions 탭에서 수동 실행
 
 permissions:
@@ -23,7 +23,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       # 수집 단계가 하나라도 실패하면 페이지는 배포하되 마지막에 실행을 실패로 표시한다 (GitHub가 메일을 보낸다)
-      collect_failed: ${{ steps.roll.outcome == 'failure' || steps.prices.outcome == 'failure' || steps.votes.outcome == 'failure' || steps.official.outcome == 'failure' }}
+      collect_failed: ${{ steps.roll.outcome == 'failure' || steps.prices.outcome == 'failure' || steps.votes.outcome == 'failure' || steps.official.outcome == 'failure' || steps.record.outcome == 'failure' }}
     env:
       TZ: Asia/Seoul
     defaults:
@@ -73,10 +73,17 @@ jobs:
           python step8_monthly_check.py
           python build_dashboard.py
 
+      - name: 호출일 기준 하루 한 건 기록
+        # 종가 수집이 성공한 실행에서만 기록한다. 같은 날 다시 실행해도 첫 기록을 유지한다
+        id: record
+        if: steps.prices.outcome == 'success'
+        continue-on-error: true
+        run: python record_daily.py
+
       - name: 수집 단계 결과를 공개 파일로 남기기 (site/status.json)
         run: |
           cat > site/status.json <<EOF
-          {"finished": "$(date '+%Y-%m-%d %H:%M')", "roll_year": "${{ steps.roll.outcome }}", "daily_prices": "${{ steps.prices.outcome }}", "votes": "${{ steps.votes.outcome }}", "official": "${{ steps.official.outcome }}"}
+          {"finished": "$(date '+%Y-%m-%d %H:%M')", "roll_year": "${{ steps.roll.outcome }}", "daily_prices": "${{ steps.prices.outcome }}", "votes": "${{ steps.votes.outcome }}", "official": "${{ steps.official.outcome }}", "daily_record": "${{ steps.record.outcome }}"}
           EOF
 
       - name: 새 데이터 커밋

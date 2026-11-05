@@ -110,9 +110,10 @@ python build_dashboard.py
 ```
 `site/index.html` 하나로 대시보드를 만듭니다(데이터 내장, 외부 라이브러리 없음).
 
-`.github/workflows/daily-update.yml`이 매 평일 오후 3시(KST)에 GitHub 서버에서
-`roll_year -> step6 -> fetch_votes -> fetch_official -> step7 -> step8 -> build_dashboard`를 돌리고, 새 데이터를 커밋한 뒤 GitHub Pages에 배포합니다.
+`.github/workflows/daily-update.yml`이 매 평일 오후 3시 30분(KST)에 GitHub 서버에서
+`roll_year -> step6 -> fetch_votes -> fetch_official -> step7 -> step8 -> build_dashboard -> record_daily`를 돌리고, 새 데이터를 커밋한 뒤 GitHub Pages에 배포합니다.
 수집 단계가 실패해도 페이지는 기존 데이터로 배포되고, 실행은 실패로 표시되어 메일이 옵니다.
+`record_daily.py`는 `data/daily_record.csv`에 호출일(Asia/Seoul)당 한 건만 남깁니다. 같은 날 다시 실행해도 첫 성공 기록을 유지합니다.
 PC를 켜 둘 필요가 없고, Pages 주소는 바뀌지 않습니다. 처음 한 번 저장소 설정이 필요합니다.
 - Settings > Secrets and variables > Actions: `DATA_GO_KR_KEY` 등록
 - Settings > Pages > Source: `GitHub Actions`
