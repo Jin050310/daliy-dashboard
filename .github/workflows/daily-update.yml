@@ -74,10 +74,12 @@ jobs:
           python build_dashboard.py
 
       - name: 호출일 기준 하루 한 건 기록
-        # 종가 수집이 성공한 실행에서만 기록한다. 같은 날 다시 실행해도 첫 기록을 유지한다
+        # 종가 수집이 성공한 실행에서만 API를 다시 조회해 응답 원본과 함께 기록한다. 같은 날 다시 실행해도 첫 기록을 유지한다
         id: record
         if: steps.prices.outcome == 'success'
         continue-on-error: true
+        env:
+          DATA_GO_KR_KEY: ${{ secrets.DATA_GO_KR_KEY }}
         run: python record_daily.py
 
       - name: 수집 단계 결과를 공개 파일로 남기기 (site/status.json)
