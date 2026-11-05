@@ -8,6 +8,7 @@
 """
 import os
 import time
+from typing import NoReturn
 from urllib.parse import quote, quote_plus
 
 import requests
@@ -22,12 +23,25 @@ def redact(text: str, key: str) -> str:
     return text
 
 
+def fail(code: str, message: str) -> NoReturn:
+    """실패 원인 코드(timeout, auth, rate_limit, offline, schema_error)를 남기고 멈춘다. 화면 상태에 쓰인다."""
+    config.COLLECT_ERROR_FILE.write_text(code, encoding="utf-8")
+    raise SystemExit(f"[{code}] {message}")
+
+
+def classify(text: str) -> str:
+    """공공데이터포털은 거절·호출 제한을 HTTP 200의 오류 문구로 주기도 한다. 그 문구로 원인을 가른다."""
+    if "LIMITED_NUMBER_OF_SERVICE_REQUESTS" in text:
+        return "rate_limit"
+    if "SERVICE_KEY_IS_NOT_REGISTERED" in text or "SERVICE_ACCESS_DENIED" in text or "Forbidden" in text:
+        return "auth"
+    return "schema_error"
+
+
 def get_key() -> str:
     key = os.environ.get(config.API_KEY_ENV)
     if not key:
-        raise SystemExit(
-            f"환경변수 {config.API_KEY_ENV}가 없습니다. README의 '인증키 설정'을 보세요."
-        )
+        fail("auth", f"환경변수 {config.API_KEY_ENV}가 없습니다. README의 '인증키 설정'을 보세요.")
     return key
 
 
@@ -59,7 +73,8 @@ def fetch_all(url: str, params: dict, rows_per_page: int = 1000, pause: float = 
             except requests.RequestException as e:
                 # 예외 메시지에는 주소(=인증키)가 들어가므로 종류 이름만 남긴다
                 if attempt == 3:
-                    raise SystemExit(f"연결 실패({type(e).__name__}): 네트워크나 서버 상태를 확인하세요.") from None
+                    code = "timeout" if isinstance(e, requests.Timeout) else "offline"
+                    fail(code, f"연결 실패({type(e).__name__}): 네트워크나 서버 상태를 확인하세요.")
                 time.sleep(5 * (attempt + 1))
                 continue
             if r.status_code < 500:
@@ -68,18 +83,17 @@ def fetch_all(url: str, params: dict, rows_per_page: int = 1000, pause: float = 
         # raise_for_status()는 오류 메시지에 주소(=인증키)가 들어가므로 쓰지 않는다
         if r.status_code != 200:
             # 서버가 알려 주는 거절 사유(본문)를 보여 준다. 키가 잘린 채 남지 않도록 지운 뒤에 자른다.
-            raise SystemExit(
-                f"HTTP {r.status_code}: 요청 주소·활용신청 승인 여부·키를 확인하세요.\n"
-                f"서버 응답: {redact(r.text, key)[:400]}"
-            )
+            code = "auth" if r.status_code in (401, 403) else "rate_limit" if r.status_code == 429 else classify(r.text)
+            fail(code, f"HTTP {r.status_code}: 요청 주소·활용신청 승인 여부·키를 확인하세요.\n"
+                       f"서버 응답: {redact(r.text, key)[:400]}")
         try:
             data = r.json()
         except ValueError:
-            raise SystemExit("JSON이 아닌 응답입니다(인증 오류일 수 있음): " + redact(r.text, key)[:200])
+            fail(classify(r.text), "JSON이 아닌 응답입니다(인증 오류일 수 있음): " + redact(r.text, key)[:200])
         try:
             items, total = parse_items(data)
         except (KeyError, TypeError):
-            raise SystemExit("예상과 다른 응답 구조입니다. parse_items()를 확인하세요: " + redact(str(data), key)[:300])
+            fail(classify(str(data)), "예상과 다른 응답 구조입니다. parse_items()를 확인하세요: " + redact(str(data), key)[:300])
         out.extend(items)
         if not items or page * rows_per_page >= total:
             break

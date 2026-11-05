@@ -67,11 +67,8 @@ jobs:
         continue-on-error: true
         run: python fetch_official.py
 
-      - name: 일별 평가액·월별 검증·대시보드 (step7, step8, build)
-        run: |
-          python step7_daily_value.py
-          python step8_monthly_check.py
-          python build_dashboard.py
+      - name: 일별 평가액 (step7)
+        run: python step7_daily_value.py
 
       - name: 호출일 기준 하루 한 건 기록
         # 종가 수집이 성공한 실행에서만 API를 다시 조회해 응답 원본과 함께 기록한다. 같은 날 다시 실행해도 첫 기록을 유지한다
@@ -81,6 +78,15 @@ jobs:
         env:
           DATA_GO_KR_KEY: ${{ secrets.DATA_GO_KR_KEY }}
         run: python record_daily.py
+
+      - name: 월별 검증·대시보드 (step8, build)
+        # 수집 결과를 넘겨 실패하면 화면에 마지막 정상값과 '오래된 값' 표시를 띄운다
+        env:
+          PRICES_OUTCOME: ${{ steps.prices.outcome }}
+          RECORD_OUTCOME: ${{ steps.record.outcome }}
+        run: |
+          python step8_monthly_check.py
+          python build_dashboard.py
 
       - name: 수집 단계 결과를 공개 파일로 남기기 (site/status.json)
         run: |

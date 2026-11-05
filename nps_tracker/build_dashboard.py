@@ -3,10 +3,13 @@
     python build_dashboard.py
 
 입력: data/daily_value.csv (step7), data/latest_holdings.csv (step7), data/monthly_check.csv (step8),
-      data/votes_meetings.csv, data/votes_items.csv (fetch_votes, 없으면 의결권 섹션을 뺀다)
+      data/votes_meetings.csv, data/votes_items.csv (fetch_votes, 없으면 의결권 섹션을 뺀다),
+      data/daily_record.csv (record_daily, 실제 조회 기록), fixtures/*.json (합성 재생),
+      data/collect_error.txt, 환경변수 PRICES_OUTCOME, RECORD_OUTCOME (워크플로의 수집 단계 결과)
 출력: site/index.html (데이터를 안에 담은 파일 하나. GitHub Pages로 그대로 배포한다)
 """
 import json
+import os
 import re
 import sys
 from datetime import datetime, timedelta, timezone
@@ -25,6 +28,7 @@ TOP_N = 15  # 표에 보여 줄 상위 종목 수
 RECENT_OPPOSE = 20  # 의결권 섹션에 먼저 보여 줄 최근 반대 안건 수
 KST = timezone(timedelta(hours=9))
 PCT_RE = re.compile(r"\s*(\S+?)\(\s*([\d.]+)%\)")
+ERROR_CODES = {"timeout", "auth", "rate_limit", "offline", "schema_error"}  # 과제 공개 계약의 실패 코드
 
 
 def decide(rows: list[str]) -> str:
@@ -68,6 +72,31 @@ def votes_payload() -> dict | None:
     }
 
 
+def records_payload() -> list[dict]:
+    """실제 일별 기록(record_daily 결과). 값은 저장된 그대로 숫자로 넘긴다."""
+    if not config.DAILY_RECORD_CSV.exists():
+        return []
+    rows = pd.read_csv(config.DAILY_RECORD_CSV, dtype=str, encoding="utf-8-sig", keep_default_na=False).to_dict("records")
+    for r in rows:
+        r["normalized_value"] = float(r["normalized_value"])
+        r["source_time"] = r["source_time"] or None
+    return rows
+
+
+def run_status() -> dict:
+    """이번 실행의 수집 결과(과제 공개 계약의 freshness, error_code). 실패해도 마지막 정상값은 그대로 보여 준다."""
+    if "failure" not in (os.environ.get("PRICES_OUTCOME"), os.environ.get("RECORD_OUTCOME")):
+        return {"freshness": "fresh", "error_code": "none"}
+    code = config.COLLECT_ERROR_FILE.read_text(encoding="utf-8").strip() if config.COLLECT_ERROR_FILE.exists() else ""
+    return {"freshness": "stale", "error_code": code if code in ERROR_CODES else "schema_error"}
+
+
+def fixtures_payload() -> dict:
+    """합성 재생에 쓰는 공개 fixture. 내용을 바꾸지 않고 그대로 싣는다."""
+    fixtures = [json.loads(f.read_text(encoding="utf-8")) for f in sorted(config.FIXTURES_DIR.glob("*.json"))]
+    return {x["fixture_id"]: x for x in fixtures}
+
+
 def main() -> None:
     for f in (config.DAILY_VALUE_CSV, config.LATEST_HOLDINGS_CSV, config.MONTHLY_CHECK_CSV):
         if not f.exists():
@@ -80,6 +109,9 @@ def main() -> None:
     num = lambda x: None if pd.isna(x) else float(x)  # 빈 값은 JSON에서 null로
     data = {
         "updated": datetime.now(KST).strftime("%Y-%m-%d %H:%M"),
+        "records": records_payload(),
+        "status": run_status(),
+        "fixtures": fixtures_payload(),
         # [날짜, 평가액, 전일 대비 %, 보유 기준 연도]
         "daily": [[r["basDt"], round(r["평가액_조"], 3), num(r["전일대비_%"]), int(r["보유기준연도"])]
                   for _, r in v.iterrows()],
@@ -194,6 +226,25 @@ table.wrap th:nth-child(2), table.wrap td:nth-child(2), table.wrap th:nth-child(
 table.wrap td { vertical-align: top; }
 .notes { color: var(--ink-2); font-size: 13.5px; } .notes li { margin: 4px 0; }
 .muted { color: var(--muted); }
+.status { background: var(--surface); border: 1px solid var(--border); border-left: 4px solid var(--s2);
+  border-radius: 8px; padding: 12px 14px; margin: 14px 0 0; font-size: 14px; }
+.status b { display: block; margin-bottom: 2px; }
+.status p { margin: 0; color: var(--ink-2); font-size: 13.5px; overflow-wrap: anywhere; }
+.facts { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 4px 16px; margin: 0 0 12px; font-size: 13.5px; }
+.facts dt { color: var(--ink-2); }
+.facts dd { margin: 0; overflow-wrap: anywhere; }
+.facts .big { font-size: 22px; font-weight: 650; }
+.facts a { color: inherit; }
+.board h3 { margin-top: 14px; }
+.board .status { margin: 10px 0 14px; }
+.board .muted { font-size: 13px; margin: 12px 0 0; }
+.fixture-group { margin-bottom: 6px; }
+.fixture-group > span { display: block; color: var(--ink-2); font-size: 12.5px; margin-bottom: 4px; }
+.replay button.retry { display: block; margin: 8px 0 0; border-color: var(--ink); background: var(--ink); color: var(--surface); }
+.chip { display: inline-block; padding: 1px 8px; border-radius: 999px; border: 1px solid var(--s2);
+  color: var(--ink); font-size: 12px; font-weight: 400; white-space: nowrap; }
+.replay button { font: inherit; font-size: 13px; padding: 4px 12px; border-radius: 8px; cursor: pointer;
+  border: 1px solid var(--border); background: transparent; color: var(--ink-2); margin: 0 6px 6px 0; }
 footer { color: var(--muted); font-size: 12.5px; margin-top: 18px; }
 @media (max-width: 720px) {
   .tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -211,9 +262,17 @@ footer { color: var(--muted); font-size: 12.5px; margin-top: 18px; }
     <h1>국민연금 국내주식 추적</h1>
     <p>국민연금이 공시한 <span class="hy"></span>년 말 국내주식 보유분을 매일 종가로 평가한 금액입니다.</p>
     <span class="badge" id="badge"></span>
+    <span class="badge" id="lookup"></span>
+    <div id="statusBanner"></div>
   </header>
 
   <section class="tiles" id="tiles" aria-label="핵심 지표"></section>
+
+  <section class="card">
+    <h2>실제 조회 기록</h2>
+    <p class="sub">공개 API를 실제로 조회한 값을 조회한 날(Asia/Seoul)마다 한 건씩 저장합니다. 같은 날 다시 조회하면 같은 행을 갱신합니다.</p>
+    <div class="board" id="liveBoard"></div>
+  </section>
 
   <section class="card">
     <h2>일별 평가액</h2>
@@ -267,6 +326,25 @@ footer { color: var(--muted); font-size: 12.5px; margin-top: 18px; }
     </ul>
   </section>
 
+  <section class="card replay" id="replay">
+    <h2>합성 재생</h2>
+    <p class="sub">과제 공개 fixture를 이 화면 안에서만 재생합니다. 값은 전부 합성 시험값이고, 실제 API를 호출하지 않으며, 위의 실제 값과 기록을 바꾸지 않습니다.</p>
+    <div class="fixture-group"><span>정상·일별 저장</span>
+      <button data-fixture="T04-NORMAL-D1-A">1일차 첫 조회</button>
+      <button data-fixture="T04-NORMAL-D1-B">같은 날 재조회</button>
+      <button data-fixture="T04-NORMAL-D2">다음 날 조회</button>
+    </div>
+    <div class="fixture-group"><span>실패 (1일차 정상 조회 뒤에 재생)</span>
+      <button data-fixture="T04-TIMEOUT">느린 응답</button>
+      <button data-fixture="T04-AUTH-401">외부 원천 거절</button>
+      <button data-fixture="T04-RATE-429">호출 제한</button>
+      <button data-fixture="T04-OFFLINE">오프라인</button>
+      <button data-fixture="T04-SCHEMA-BREAK">응답 형식 변경</button>
+    </div>
+    <button id="replayReset">초기화</button>
+    <div class="board" id="replayBoard" hidden></div>
+  </section>
+
   <footer id="footer"></footer>
 </main>
 
@@ -293,7 +371,151 @@ footer { color: var(--muted); font-size: 12.5px; margin-top: 18px; }
   const last = daily[daily.length - 1];
   const dayDiff = last.v - last.v / (1 + last.pct / 100);  // 같은 보유분끼리 비교한 전일 대비 금액
   const peak = daily.reduce((a, b) => (b.v > a.v ? b : a));
-  document.getElementById('badge').textContent = `기준일 ${fmtDate(last.d)} 종가 · 업데이트 ${D.updated} KST`;
+  document.getElementById('badge').textContent = `기준일 ${fmtDate(last.d)} 종가 · 업데이트 ${D.updated}`;
+  const latest = D.records[D.records.length - 1] || null;
+  const failed = D.status.freshness !== 'fresh';
+
+  // ---- 저장 규칙과 화면: 실제 기록과 합성 재생이 같은 함수를 쓴다 ----
+  const fmtTime = iso => {
+    if (!iso) return '제공되지 않음';
+    const p = Object.fromEntries(new Intl.DateTimeFormat('en', { timeZone: 'Asia/Seoul', hourCycle: 'h23',
+      year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
+      .formatToParts(new Date(iso)).map(x => [x.type, x.value]));
+    return `${p.year}-${p.month}-${p.day} ${p.hour}:${p.minute}`;
+  };
+  const kstDate = iso => fmtTime(iso).slice(0, 10);
+  const ERROR_TEXT = {
+    timeout: '외부 원천이 제한 시간 안에 응답하지 않았습니다.',
+    auth: '외부 원천이 요청을 거절했습니다(401 또는 403).',
+    rate_limit: '외부 원천이 호출 횟수 제한으로 요청을 막았습니다(429).',
+    offline: '네트워크에 연결되지 않아 외부 원천을 조회하지 못했습니다.',
+    schema_error: '응답 형식이 달라 값을 읽지 못했습니다.',
+  };
+  const READING_KEYS = ['signal_id', 'normalized_value', 'unit', 'source_name', 'source_url', 'source_time', 'fetched_at', 'record_timezone', 'record_date'];
+
+  function validReading(r) {
+    if (!r || typeof r !== 'object') return false;
+    if ([...Object.keys(r)].sort().join() !== [...READING_KEYS].sort().join()) return false;
+    if (!/^[a-z0-9][a-z0-9._-]*$/.test(r.signal_id) || typeof r.normalized_value !== 'number' || !Number.isFinite(r.normalized_value)) return false;
+    if (typeof r.unit !== 'string' || !r.unit.trim() || typeof r.source_name !== 'string' || !r.source_name.trim()) return false;
+    if (!/^https:\/\//.test(r.source_url) || r.record_timezone !== 'Asia/Seoul') return false;
+    if (r.source_time !== null && Number.isNaN(new Date(r.source_time).getTime())) return false;
+    if (Number.isNaN(new Date(r.fetched_at).getTime())) return false;
+    return r.record_date === kstDate(r.fetched_at);
+  }
+  function compare(rows, current) {
+    const prev = rows.filter(r => r.signal_id === current.signal_id && r.record_date < current.record_date)
+      .sort((a, b) => b.record_date.localeCompare(a.record_date))[0];
+    if (!prev) return { state: 'insufficient', signed: null, unit: null };
+    if (prev.unit !== current.unit) return { state: 'unit_mismatch', signed: null, unit: null };
+    return { state: 'comparable', signed: +(current.normalized_value - prev.normalized_value).toFixed(4), unit: current.unit };
+  }
+  const compareText = c => c.state === 'comparable' ? `${c.signed > 0 ? '+' : ''}${c.signed} ${c.unit}`
+    : c.state === 'unit_mismatch' ? '단위가 달라 비교 불가' : '비교할 이전 기록 없음';
+
+  function renderBoard(root, s, opts = {}) {
+    const cur = s.current;
+    root.replaceChildren();
+    root.dataset.freshness = s.status ? s.status.freshness : '';
+    root.dataset.errorCode = s.status ? s.status.error_code : '';
+    root.dataset.rowCount = s.rows.length;
+    root.dataset.storedValue = cur ? cur.normalized_value : '';
+    root.dataset.recordDate = cur ? cur.record_date : '';
+    const stale = s.status && s.status.freshness === 'stale';
+    if (opts.note) root.append(el('p', { class: 'muted' }, opts.note));
+    if (stale && opts.showFailure) {
+      const box = el('div', { class: 'status', role: 'alert' });
+      box.append(el('b', {}, `${opts.label || ''}${ERROR_TEXT[s.status.error_code]}`),
+        el('p', {}, `freshness ${s.status.freshness} · error_code ${s.status.error_code}` + (s.retryAfter ? ` · Retry-After ${s.retryAfter}초` : '')));
+      if (opts.onRetry) { const b = el('button', { class: 'retry', 'data-retry': '1' }, '다시 시도'); b.onclick = opts.onRetry; box.append(b); }
+      root.append(box);
+    }
+    if (!cur) { root.append(el('p', { class: 'muted' }, opts.empty || '아직 기록이 없습니다.')); return; }
+    const dl = el('dl', { class: 'facts' });
+    const add = (k, v) => { const dd = el('dd'); dd.append(...[].concat(v)); dl.append(el('dt', {}, k), dd); };
+    const link = u => { const a = el('a', { href: u, rel: 'noopener' }, u); return a; };
+    const big = el('span', { class: 'big', 'data-value': cur.normalized_value }, `${cur.normalized_value} ${cur.unit}`);
+    add(stale ? '마지막 정상값' : '값', stale ? [big, ' ', el('span', { class: 'chip' }, '오래된 값')] : [big]);
+    add('직전 기록 대비', compareText(compare(s.rows, cur)));
+    add('출처', cur.source_name);
+    add('출처 주소', link(cur.source_url));
+    add('출처 시각', fmtTime(cur.source_time) + (cur.source_time ? ' Asia/Seoul' : ''));
+    add('조회 시각', `${fmtTime(cur.last_fetched_at)} Asia/Seoul`);
+    add('기준 시간대', `${cur.record_timezone} (UTC+9)`);
+    add('상태', `freshness ${s.status.freshness} · error_code ${s.status.error_code}`);
+    (opts.extra ? opts.extra(cur) : []).forEach(([k, v]) => add(k, typeof v === 'string' && v.startsWith('https://') ? link(v) : v));
+    root.append(dl, el('h3', {}, `일별 기록 ${s.rows.length}건`));
+    const wrap = el('div', { class: 'tbl' }), tb = el('table'), head = el('tr');
+    ['조회일', '값', '단위', '직전 기록 대비', '출처 시각', '조회 시각', '출처 주소'].forEach(h => head.append(el('th', {}, h)));
+    const thead = el('thead'); thead.append(head);
+    const body = el('tbody');
+    [...s.rows].reverse().forEach(r => {
+      const tr = el('tr', { 'data-record-id': r.record_id });
+      [r.record_date, r.normalized_value, r.unit, compareText(compare(s.rows, r)), r.source_time || '제공되지 않음', r.last_fetched_at, r.source_url]
+        .forEach(c => tr.append(el('td', {}, String(c))));
+      body.append(tr);
+    });
+    tb.append(thead, body); wrap.append(tb); root.append(wrap);
+  }
+
+  // 실제 기록
+  document.getElementById('lookup').textContent = `조회 시각 ${latest ? fmtTime(latest.last_fetched_at) : '기록 없음'} · 기준 시간대 Asia/Seoul (UTC+9)`;
+  if (failed) {
+    const box = el('div', { class: 'status', role: 'alert', 'data-freshness': D.status.freshness, 'data-error-code': D.status.error_code });
+    box.append(el('b', {}, '최근 수집에 실패했습니다. 마지막 정상값을 보여 줍니다.'),
+      el('p', {}, `${ERROR_TEXT[D.status.error_code]} 다음 자동 실행 때 다시 시도합니다.`),
+      el('p', {}, `freshness ${D.status.freshness} · error_code ${D.status.error_code}`));
+    document.getElementById('statusBanner').append(box);
+  }
+  renderBoard(document.getElementById('liveBoard'), { rows: D.records, status: D.status, current: latest }, {
+    empty: '아직 실제 조회 기록이 없습니다. 자동 실행이 처음 성공하면 여기에 표시됩니다.',
+    extra: r => [['거래일', `${r.trade_date} 종가 (원천 응답 ${Number(r.response_rows).toLocaleString('ko-KR')}건)`],
+      ['보유 내역 출처', r.holdings_source_url], ['보유 내역 기준일', r.holdings_as_of],
+      ['계산 방법', '연말 공시 보유 주식 수 × 거래일 종가의 종목별 합계'], ['원자료 파일', r.raw_file]],
+  });
+
+  // 합성 재생: D.fixtures만 쓰고 실제 기록(D.records)을 읽거나 바꾸지 않는다
+  const FAILURES = ['T04-TIMEOUT', 'T04-AUTH-401', 'T04-RATE-429', 'T04-OFFLINE', 'T04-SCHEMA-BREAK'];
+  const newState = () => ({ rows: [], current: null, status: null, retryAfter: null, played: [] });
+  let synth = newState();
+  function applyGood(s, r) {
+    const old = s.rows.find(x => x.signal_id === r.signal_id && x.record_date === r.record_date);
+    const row = { record_id: old ? old.record_id : `demo-${r.signal_id}-${r.record_date}`, signal_id: r.signal_id, record_date: r.record_date,
+      normalized_value: r.normalized_value, unit: r.unit, source_name: r.source_name, source_url: r.source_url, source_time: r.source_time,
+      first_fetched_at: old ? old.first_fetched_at : r.fetched_at, last_fetched_at: r.fetched_at, record_timezone: r.record_timezone };
+    s.rows = s.rows.filter(x => x !== old).concat(row).sort((a, b) => a.record_date.localeCompare(b.record_date));
+    s.current = row; s.status = { freshness: 'fresh', error_code: 'none' }; s.retryAfter = null;
+  }
+  function applyFail(s, code, retryAfter) { s.status = { freshness: 'stale', error_code: code }; s.retryAfter = retryAfter || null; }
+  function runFixture(s, id) {
+    const f = D.fixtures[id], t = f.transport;
+    s.played.push(id);
+    if (t.mode === 'timeout' || t.delay_ms > t.deadline_ms) return applyFail(s, 'timeout');
+    if (t.mode === 'offline') return applyFail(s, 'offline');
+    if (t.status === 401 || t.status === 403) return applyFail(s, 'auth');
+    if (t.status === 429) return applyFail(s, 'rate_limit', t.headers['retry-after']);
+    if (t.status >= 200 && t.status < 300 && validReading(f.payload)) return applyGood(s, f.payload);
+    return applyFail(s, 'schema_error');
+  }
+  const sequence = id => id === 'T04-NORMAL-D1-A' ? [id]
+    : id === 'T04-RECOVER-D2' ? ['T04-NORMAL-D1-A', 'T04-NORMAL-D1-B', 'T04-TIMEOUT', id]
+    : ['T04-NORMAL-D1-A', 'T04-NORMAL-D1-B'].concat(id === 'T04-NORMAL-D1-B' ? [] : [id]);
+  const replayBoard = document.getElementById('replayBoard');
+  function showReplay() {
+    replayBoard.hidden = false;
+    renderBoard(replayBoard, synth, {
+      note: `[합성 재생] 재생 순서: ${synth.played.join(' → ') || '초기화 상태'}`, label: '[합성] ', showFailure: true,
+      empty: '합성 평가 상태를 비웠습니다.', onRetry: retry,
+    });
+  }
+  function retry() { runFixture(synth, 'T04-RECOVER-D2'); showReplay(); }
+  function play(id) { synth = newState(); sequence(id).forEach(x => runFixture(synth, x)); showReplay(); }
+  function resetReplay() { synth = newState(); showReplay(); }
+  document.querySelectorAll('[data-fixture]').forEach(b => b.addEventListener('click', () => play(b.dataset.fixture)));
+  document.getElementById('replayReset').addEventListener('click', resetReplay);
+  const asked = new URLSearchParams(location.search).get('replay');
+  if (asked && Object.hasOwn(D.fixtures, asked)) play(asked);
+
   const tiles = [
     ['최근 평가액', `${jo(last.v)}조 원`, fmtDate(last.d), ''],
     ['전일 대비', arrow(last.pct) + pct(last.pct), `${dayDiff > 0 ? '+' : ''}${jo(dayDiff)}조 원`, cls(last.pct)],
@@ -304,6 +526,7 @@ footer { color: var(--muted); font-size: 12.5px; margin-top: 18px; }
   for (const [k, v, s, c] of tiles) {
     const t = el('div', { class: 'tile' });
     t.append(el('div', { class: 'k' }, k), el('div', { class: 'v ' + c }, v), el('div', { class: 's' }, s));
+    if (failed && k !== '기간 중 최고') t.append(el('span', { class: 'chip' }, '오래된 값'));
     tilesEl.append(t);
   }
 

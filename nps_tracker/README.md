@@ -111,9 +111,10 @@ python build_dashboard.py
 `site/index.html` 하나로 대시보드를 만듭니다(데이터 내장, 외부 라이브러리 없음).
 
 `.github/workflows/daily-update.yml`이 매 평일 오후 3시 30분(KST)에 GitHub 서버에서
-`roll_year -> step6 -> fetch_votes -> fetch_official -> step7 -> step8 -> build_dashboard -> record_daily`를 돌리고, 새 데이터를 커밋한 뒤 GitHub Pages에 배포합니다.
-수집 단계가 실패해도 페이지는 기존 데이터로 배포되고, 실행은 실패로 표시되어 메일이 옵니다.
-`record_daily.py`는 그날 API를 실제로 호출해 응답 원본을 `data/source_records/호출일.csv`에 보존하고, `data/daily_record.csv`에 호출일(Asia/Seoul)당 한 건만 남깁니다. 같은 날 다시 실행하면 API를 부르지 않고 첫 성공 기록을 유지하며, 호출이 실패하면 기록하지 않습니다. 조회일이 서로 다른 최근 2건만 남기고 더 오래된 기록과 원본은 지웁니다(git 기록에는 남습니다).
+`roll_year -> step6 -> fetch_votes -> fetch_official -> step7 -> record_daily -> step8 -> build_dashboard`를 돌리고, 새 데이터를 커밋한 뒤 GitHub Pages에 배포합니다.
+수집 단계가 실패해도 페이지는 기존 데이터로 배포되고, 화면에 마지막 정상값과 '오래된 값' 표시가 나옵니다. 실행은 실패로 표시되어 메일이 옵니다.
+화면 아래쪽 '합성 재생'(또는 주소 뒤 `?replay=T04-TIMEOUT` 같은 fixture ID)은 `fixtures/`의 과제 공개 합성 fixture만 쓰며 실제 값과 기록을 바꾸지 않습니다. 실패 상태의 '다시 시도'는 `T04-RECOVER-D2`를 재생합니다.
+`record_daily.py`는 그날 API를 실제로 호출해 응답 원본을 `data/source_records/YYYY-MM-DD.csv`에 보존하고, `data/daily_record.csv`에 조회일(Asia/Seoul)당 한 행을 저장합니다. 같은 날 다시 성공하면 같은 행을 갱신하고, 다음 날 성공하면 새 행을 만들며, 실패하면 아무것도 쓰지 않습니다. 기록은 지우지 않습니다.
 PC를 켜 둘 필요가 없고, Pages 주소는 바뀌지 않습니다. 처음 한 번 저장소 설정이 필요합니다.
 - Settings > Secrets and variables > Actions: `DATA_GO_KR_KEY` 등록
 - Settings > Pages > Source: `GitHub Actions`
