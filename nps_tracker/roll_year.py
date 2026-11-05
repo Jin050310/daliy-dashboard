@@ -23,11 +23,11 @@ import zipfile
 from datetime import date, timedelta
 
 import pandas as pd
-import requests
 
 import bases
 import config
 import krx_api
+import nps_http
 import step4_map_codes as step4
 
 try:
@@ -47,7 +47,7 @@ CONFIRMED = {"manual", "exact", "normalized"}
 
 def available_files() -> dict[int, str]:
     """홈페이지 '투자종목' 버튼: {연도: 파일 주소}."""
-    page = requests.get(config.HOLDINGS_PAGE_URL, timeout=30).text
+    page = nps_http.fetch("GET", config.HOLDINGS_PAGE_URL).text
     links = re.findall(r'href="(/fileDown\.do\?[^"]+)"[^>]*>\s*(20\d\d)\s*</a>', page)
     return {int(y): config.HOLDINGS_FILE_BASE + html.unescape(u) for u, y in links}
 
@@ -135,7 +135,7 @@ def last_trading_day(year: int) -> tuple[str, pd.DataFrame]:
 
 def official_total(year: int) -> float | None:
     """홈페이지 자산군별 운용규모의 그 해 국내주식 총액(조 원)."""
-    r = requests.post(config.OFFICIAL_SIZE_URL, json={"searchGbu": "5", "cartMngSn": "1"}, timeout=30)
+    r = nps_http.fetch("POST", config.OFFICIAL_SIZE_URL, json={"searchGbu": "5", "cartMngSn": "1"})
     for x in r.json().get("resultDtlList") or []:
         if x.get("artclCn1") == str(year) and x.get("artclCn3"):
             return float(x["artclCn3"]) / 1000
@@ -220,9 +220,9 @@ def main() -> None:
         raise SystemExit(f"{year}년 파일이 홈페이지에 없습니다. 있는 연도: {sorted(files)}")
 
     print(f"새 연말 공시 발견: {year}년")
-    res = requests.get(files[year], timeout=60)
-    if res.status_code != 200 or not res.content.startswith(b"PK"):
-        raise SystemExit(f"{year}년 파일을 받지 못했습니다 (HTTP {res.status_code}).")
+    res = nps_http.fetch("GET", files[year], timeout=60)
+    if not res.content.startswith(b"PK"):
+        raise SystemExit(f"{year}년 파일이 엑셀 형식이 아닙니다.")
     hold = parse_holdings(read_sheet(res.content), year)
     base_date, prices = last_trading_day(year)
     print(f"{year}년 마지막 거래일: {base_date}")

@@ -15,9 +15,9 @@ import time
 from datetime import date
 
 import pandas as pd
-import requests
 
 import config
+import nps_http
 
 try:
     sys.stdout.reconfigure(encoding="utf-8")
@@ -43,15 +43,7 @@ def clean(s: str) -> str:
 
 
 def get(url: str, **kw) -> str:
-    for attempt in range(4):
-        try:
-            r = requests.post(url, timeout=30, **kw)
-            if r.status_code == 200:
-                return r.text
-        except requests.RequestException:
-            pass
-        time.sleep(3 * (attempt + 1))
-    raise SystemExit(f"홈페이지 응답 없음: {url}")
+    return nps_http.fetch("POST", url, **kw).text
 
 
 def list_meetings(start: str, end: str) -> pd.DataFrame:

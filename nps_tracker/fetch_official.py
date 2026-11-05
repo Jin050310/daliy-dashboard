@@ -15,9 +15,9 @@ import sys
 from datetime import date
 
 import pandas as pd
-import requests
 
 import config
+import nps_http
 
 try:
     sys.stdout.reconfigure(encoding="utf-8")
@@ -29,14 +29,14 @@ COLS = ["월", "공시값_조", "출처", "수집일"]
 
 
 def main() -> None:
-    page = requests.get(config.OFFICIAL_MONTH_URL, timeout=30).text
+    page = nps_http.fetch("GET", config.OFFICIAL_MONTH_URL).text
     months = set(re.findall(r"(\d{4})년\s*(\d{1,2})월\s*말\s*기준", page))
     if len(months) != 1:
         raise SystemExit(f"기준월을 하나로 정하지 못했습니다: {months or '표시 없음'}")
     (yy, mm), = months
     latest_ym = f"{yy}{int(mm):02d}"
 
-    r = requests.post(config.OFFICIAL_SIZE_URL, json={"searchGbu": "5", "cartMngSn": "1"}, timeout=30)
+    r = nps_http.fetch("POST", config.OFFICIAL_SIZE_URL, json={"searchGbu": "5", "cartMngSn": "1"})
     rows = r.json().get("resultDtlList") or []
     # artclCn1 = 연도, artclCn3 = 국내주식(십억 원)
     by_year = {x["artclCn1"]: float(x["artclCn3"]) / 1000 for x in rows if x.get("artclCn1") and x.get("artclCn3")}

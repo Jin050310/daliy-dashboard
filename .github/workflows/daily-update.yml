@@ -73,6 +73,12 @@ jobs:
           python step8_monthly_check.py
           python build_dashboard.py
 
+      - name: 수집 단계 결과를 공개 파일로 남기기 (site/status.json)
+        run: |
+          cat > site/status.json <<EOF
+          {"finished": "$(date '+%Y-%m-%d %H:%M')", "roll_year": "${{ steps.roll.outcome }}", "daily_prices": "${{ steps.prices.outcome }}", "votes": "${{ steps.votes.outcome }}", "official": "${{ steps.official.outcome }}"}
+          EOF
+
       - name: 새 데이터 커밋
         run: |
           git config user.name "github-actions[bot]"
