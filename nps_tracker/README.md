@@ -108,7 +108,7 @@ python roll_year.py
 ```
 python build_dashboard.py
 ```
-`site/index.html` 하나로 대시보드를 만듭니다(데이터 내장, 외부 라이브러리 없음).
+`site/index.html` 하나로 대시보드를 만듭니다(데이터 내장, 외부 라이브러리 없음. 글꼴 Pretendard만 CDN에서 받고, 못 받으면 시스템 글꼴을 씁니다).
 
 `.github/workflows/daily-update.yml`이 매 평일 오후 3시 30분(KST)에 GitHub 서버에서
 `roll_year -> step6 -> fetch_votes -> fetch_official -> step7 -> record_daily -> step8 -> build_dashboard`를 돌리고, 새 데이터를 커밋한 뒤 GitHub Pages에 배포합니다.

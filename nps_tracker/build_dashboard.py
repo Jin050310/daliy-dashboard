@@ -148,111 +148,138 @@ TEMPLATE = r"""<!doctype html>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>국민연금 국내주식 추적</title>
 <meta name="description" content="국민연금 연말 공시 국내주식 보유분을 매일 종가로 평가한 금액">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
 <style>
 :root {
   color-scheme: light;
-  --page: #f9f9f7; --surface: #fcfcfb; --border: rgba(11,11,11,0.10);
-  --ink: #0b0b0b; --ink-2: #52514e; --muted: #898781;
-  --grid: #e1e0d9; --axis: #c3c2b7;
-  --s1: #2a78d6; --s2: #eb6834;
-  --up: #d03b3b; --down: #2a78d6;
+  --page: #f2f4f6; --surface: #ffffff; --soft: #f2f4f6; --line: #e5e8eb;
+  --ink: #191f28; --ink-2: #4e5968; --muted: #646e7b;
+  --grid: #f2f4f6; --axis: #e5e8eb;
+  --up: #e02135; --down: #1b64da; --accent: #1b64da; --on-accent: #ffffff;
+  --s1: var(--up); --s2: #191f28;
+  --warn: #a55600; --warn-soft: #fff3e0;
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     color-scheme: dark;
-    --page: #0d0d0d; --surface: #1a1a19; --border: rgba(255,255,255,0.10);
-    --ink: #f0efec; --ink-2: #c3c2b7; --muted: #898781;
-    --grid: #2c2c2a; --axis: #383835;
-    --s1: #3987e5; --s2: #d95926;
-    --up: #e66767; --down: #3987e5;
+    --page: #17171c; --surface: #202027; --soft: #2c2c35; --line: #3c3c47;
+    --ink: #f2f3f5; --ink-2: #b0b8c1; --muted: #9ea7b2;
+    --grid: #2c2c35; --axis: #3c3c47;
+    --up: #f7616e; --down: #5a9df8; --accent: #5a9df8; --on-accent: #17171c;
+    --s2: #f2f3f5;
+    --warn: #ffb74d; --warn-soft: #3a2c17;
   }
 }
 :root[data-theme="dark"] {
   color-scheme: dark;
-  --page: #0d0d0d; --surface: #1a1a19; --border: rgba(255,255,255,0.10);
-  --ink: #f0efec; --ink-2: #c3c2b7; --muted: #898781;
-  --grid: #2c2c2a; --axis: #383835;
-  --s1: #3987e5; --s2: #d95926;
-  --up: #e66767; --down: #3987e5;
+  --page: #17171c; --surface: #202027; --soft: #2c2c35; --line: #3c3c47;
+  --ink: #f2f3f5; --ink-2: #b0b8c1; --muted: #9ea7b2;
+  --grid: #2c2c35; --axis: #3c3c47;
+  --up: #f7616e; --down: #5a9df8; --accent: #5a9df8; --on-accent: #17171c;
+  --s2: #f2f3f5;
+  --warn: #ffb74d; --warn-soft: #3a2c17;
 }
 * { box-sizing: border-box; }
-body { margin: 0; background: var(--page); color: var(--ink);
-  font: 15px/1.55 system-ui, -apple-system, "Segoe UI", "Malgun Gothic", sans-serif; }
-main { max-width: 1040px; margin: 0 auto; padding: 28px 16px 48px; }
-header h1 { font-size: 22px; margin: 0 0 4px; letter-spacing: -0.01em; }
+body { margin: 0; background: var(--page); color: var(--ink); word-break: keep-all;
+  font: 15px/1.55 "Pretendard Variable", Pretendard, system-ui, -apple-system, "Segoe UI", "Malgun Gothic", sans-serif;
+  -webkit-font-smoothing: antialiased; }
+main { max-width: 720px; margin: 0 auto; padding: 24px 16px 56px; }
+header { padding: 0 4px; margin-bottom: 16px; }
+header h1 { font-size: 20px; font-weight: 700; margin: 0 0 4px; letter-spacing: -0.02em; }
 header p { margin: 0; color: var(--ink-2); font-size: 14px; }
-.badge { display: inline-block; margin-top: 10px; padding: 3px 10px; border-radius: 999px;
-  border: 1px solid var(--border); color: var(--ink-2); font-size: 12.5px; background: var(--surface); }
-.tiles { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin: 22px 0; }
-.tile { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; }
-.tile .k { color: var(--ink-2); font-size: 13px; }
-.tile .v { font-size: 26px; font-weight: 650; margin-top: 2px; letter-spacing: -0.01em; }
-.tile .s { color: var(--muted); font-size: 12.5px; margin-top: 2px; }
+.card { background: var(--surface); border-radius: 20px; padding: 24px; margin-bottom: 12px; }
+.card h2 { font-size: 18px; font-weight: 700; margin: 0 0 4px; letter-spacing: -0.02em; }
+.card .sub { color: var(--ink-2); font-size: 13.5px; margin: 0 0 14px; }
+.card h3 { font-size: 15px; font-weight: 700; margin: 22px 0 8px; color: var(--ink); }
+.hero .k { color: var(--ink-2); font-size: 15px; font-weight: 500; }
+.hero .v { font-size: 48px; font-weight: 700; line-height: 1.2; letter-spacing: -0.03em; margin: 2px 0 4px; }
+.hero .c { font-size: 16px; font-weight: 600; }
+.hero .chip { margin-left: 6px; vertical-align: 2px; }
+.meta { margin: 8px 0 18px; color: var(--muted); font-size: 12.5px; }
+.meta span { display: block; }
 .up { color: var(--up); } .down { color: var(--down); }
-.card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 18px; margin-bottom: 16px; }
-.card h2 { font-size: 16px; margin: 0 0 4px; }
-.card .sub { color: var(--ink-2); font-size: 13px; margin: 0 0 12px; }
-.controls { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-bottom: 8px; }
-.controls button { font: inherit; font-size: 13px; padding: 4px 12px; border-radius: 8px; cursor: pointer;
-  border: 1px solid var(--border); background: transparent; color: var(--ink-2); }
-.controls button[aria-pressed="true"] { background: var(--ink); color: var(--surface); border-color: var(--ink); }
-.legend { display: flex; gap: 16px; margin-left: auto; font-size: 12.5px; color: var(--ink-2); }
+.chart { position: relative; }
+.chart svg { display: block; width: 100%; height: 280px; touch-action: pan-y; }
+.chart svg:focus { outline: none; }
+.chart text { fill: var(--muted); font-size: 11.5px; font-variant-numeric: tabular-nums; }
+.controls { display: flex; gap: 4px; padding: 4px; margin-top: 12px; border-radius: 12px; background: var(--soft); }
+.controls button { flex: 1; font: inherit; font-size: 14px; font-weight: 500; padding: 7px 0; border: 0; border-radius: 9px; cursor: pointer;
+  background: transparent; color: var(--ink-2); }
+.controls button[aria-pressed="true"] { background: var(--surface); color: var(--ink); font-weight: 700; box-shadow: 0 1px 3px rgba(0,0,0,0.12); }
+.legend { display: flex; flex-wrap: wrap; gap: 4px 16px; margin-top: 14px; font-size: 13px; color: var(--ink-2); }
 .legend span { display: inline-flex; align-items: center; gap: 6px; }
 .key-line { width: 16px; height: 2px; background: var(--s1); border-radius: 1px; }
-.key-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--s2); box-shadow: 0 0 0 2px var(--surface); }
-.chart { position: relative; }
-.chart svg { display: block; width: 100%; height: 320px; }
-.chart text { fill: var(--muted); font-size: 11.5px; font-variant-numeric: tabular-nums; }
-.tip { position: absolute; pointer-events: none; background: var(--surface); border: 1px solid var(--border);
-  border-radius: 8px; padding: 8px 10px; font-size: 12.5px; box-shadow: 0 4px 16px rgba(0,0,0,0.12);
-  white-space: nowrap; display: none; }
+.key-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--s2); }
+.chart-note { color: var(--muted); font-size: 12.5px; margin: 6px 0 0; }
+.tip { position: absolute; pointer-events: none; background: var(--surface); border: 1px solid var(--line); border-radius: 12px;
+  padding: 8px 12px; font-size: 13px; box-shadow: 0 6px 20px rgba(0,0,0,0.14); white-space: nowrap; display: none; }
 .tip .d { color: var(--muted); margin-bottom: 4px; }
 .tip .row { display: flex; align-items: center; gap: 8px; }
-.tip .row b { font-weight: 650; }
+.tip .row b { font-weight: 700; }
 .tip .row i { width: 12px; height: 2px; display: inline-block; }
 .tip .row span { color: var(--ink-2); }
-table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
-th, td { padding: 7px 8px; text-align: right; border-bottom: 1px solid var(--grid); font-variant-numeric: tabular-nums; white-space: nowrap; }
-th { color: var(--ink-2); font-weight: 550; font-size: 12.5px; }
-th:first-child, td:first-child { text-align: left; }
+.stat { display: flex; justify-content: space-between; align-items: baseline; gap: 16px; padding: 12px 0; }
+.stat:first-child { padding-top: 0; } .stat:last-child { padding-bottom: 0; }
+.stat .k { color: var(--ink-2); font-size: 15px; }
+.stat .r { text-align: right; }
+.stat .v { font-size: 16px; font-weight: 700; }
+.stat .s { color: var(--muted); font-size: 12.5px; margin-top: 1px; }
+.stat .chip { margin-top: 4px; }
+.stocks { list-style: none; margin: 4px 0 0; padding: 0; }
+.stocks li { display: flex; align-items: center; gap: 12px; padding: 11px 0; }
+.stocks .rank { width: 22px; flex: none; color: var(--accent); font-size: 15px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.stocks .name { flex: 1; min-width: 0; }
+.stocks .name b { display: block; font-size: 15px; font-weight: 600; overflow-wrap: anywhere; }
+.stocks .name small { color: var(--muted); font-size: 12.5px; }
+.stocks .amt { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.stocks .amt b { display: block; font-size: 15px; font-weight: 600; }
+.stocks .amt small { font-size: 13px; font-weight: 500; }
+table { width: 100%; border-collapse: collapse; font-size: 14px; }
+th, td { padding: 10px 8px; text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+th { color: var(--muted); font-weight: 500; font-size: 13px; border-bottom: 1px solid var(--line); }
+th:first-child, td:first-child { text-align: left; padding-left: 0; }
+th:last-child, td:last-child { padding-right: 0; }
 .tbl { overflow-x: auto; }
-details { margin-top: 10px; } summary { cursor: pointer; color: var(--ink-2); font-size: 13px; }
-.card h3 { font-size: 14px; margin: 18px 0 6px; color: var(--ink); }
-.vstats { display: flex; flex-wrap: wrap; gap: 8px 24px; margin: 4px 0 2px; }
-.vstats div { font-size: 13px; color: var(--ink-2); }
-.vstats b { display: block; font-size: 20px; color: var(--ink); font-weight: 650; }
+details { margin-top: 12px; }
+summary { cursor: pointer; color: var(--ink-2); font-size: 14px; font-weight: 500; padding: 4px 0; }
+.vstats { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin: 6px 0 2px; }
+.vstats div { font-size: 13px; color: var(--ink-2); background: var(--soft); border-radius: 14px; padding: 12px 14px; }
+.vstats b { display: block; font-size: 18px; color: var(--ink); font-weight: 700; }
 table.wrap td:last-child, table.wrap td:nth-child(3) { white-space: normal; text-align: left; min-width: 160px; }
 table.wrap th:nth-child(2), table.wrap td:nth-child(2), table.wrap th:nth-child(3), table.wrap th:last-child { text-align: left; }
 table.wrap td { vertical-align: top; }
-.notes { color: var(--ink-2); font-size: 13.5px; } .notes li { margin: 4px 0; }
+.notes { color: var(--ink-2); font-size: 14px; }
+.notes h2 { color: var(--ink); }
+.notes ul { margin: 8px 0 0; padding-left: 18px; }
+.notes li { margin: 6px 0; }
 .muted { color: var(--muted); }
-.status { background: var(--surface); border: 1px solid var(--border); border-left: 4px solid var(--s2);
-  border-radius: 8px; padding: 12px 14px; margin: 14px 0 0; font-size: 14px; }
-.status b { display: block; margin-bottom: 2px; }
+.status { background: var(--warn-soft); border-radius: 14px; padding: 14px 16px; margin: 12px 0 0; font-size: 14px; }
+.status b { display: block; margin-bottom: 2px; font-weight: 700; }
 .status p { margin: 0; color: var(--ink-2); font-size: 13.5px; overflow-wrap: anywhere; }
-.facts { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 4px 16px; margin: 0 0 12px; font-size: 13.5px; }
+.facts { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 7px 16px; margin: 14px 0 12px; font-size: 14px; }
 .facts dt { color: var(--ink-2); }
 .facts dd { margin: 0; overflow-wrap: anywhere; }
-.facts .big { font-size: 22px; font-weight: 650; }
-.facts a { color: inherit; }
-.board h3 { margin-top: 14px; }
-.board .status { margin: 10px 0 14px; }
-.board .muted { font-size: 13px; margin: 12px 0 0; }
-.fixture-group { margin-bottom: 6px; }
-.fixture-group > span { display: block; color: var(--ink-2); font-size: 12.5px; margin-bottom: 4px; }
-.replay button.retry { display: block; margin: 8px 0 0; border-color: var(--ink); background: var(--ink); color: var(--surface); }
-.chip { display: inline-block; padding: 1px 8px; border-radius: 999px; border: 1px solid var(--s2);
-  color: var(--ink); font-size: 12px; font-weight: 400; white-space: nowrap; }
-.replay button { font: inherit; font-size: 13px; padding: 4px 12px; border-radius: 8px; cursor: pointer;
-  border: 1px solid var(--border); background: transparent; color: var(--ink-2); margin: 0 6px 6px 0; }
-footer { color: var(--muted); font-size: 12.5px; margin-top: 18px; }
+.facts .big { font-size: 24px; font-weight: 700; letter-spacing: -0.02em; }
+.facts a { color: var(--accent); text-decoration: none; }
+.board h3 { margin-top: 18px; }
+.board .status { margin: 12px 0 14px; }
+.board .muted { font-size: 13px; margin: 14px 0 0; overflow-wrap: anywhere; }
+.fixture-group { margin-bottom: 10px; }
+.fixture-group > span { display: block; color: var(--ink-2); font-size: 13px; margin-bottom: 6px; }
+.chip { display: inline-block; padding: 1px 8px; border-radius: 6px; background: var(--warn-soft); color: var(--warn);
+  font-size: 12px; font-weight: 600; white-space: nowrap; }
+.status .chip { background: var(--surface); }
+.replay button { font: inherit; font-size: 14px; font-weight: 500; padding: 7px 13px; border: 0; border-radius: 10px; cursor: pointer;
+  background: var(--soft); color: var(--ink); margin: 0 6px 6px 0; }
+.replay button.retry { display: block; margin: 10px 0 0; background: var(--accent); color: var(--on-accent); font-weight: 700; }
+footer { color: var(--muted); font-size: 12.5px; margin-top: 16px; padding: 0 4px; }
+button:focus-visible, summary:focus-visible, a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 @media (max-width: 720px) {
-  .tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .tile .v { font-size: 22px; }
-  .legend { margin-left: 0; width: 100%; }
-  .chart svg { height: 260px; }
+  main { padding: 18px 12px 48px; }
+  .card { padding: 20px 18px; }
+  .chart svg { height: 240px; }
   table { font-size: 13px; }
-  th, td { padding: 6px 6px; }
+  th, td { padding: 8px 6px; }
 }
 </style>
 </head>
@@ -261,40 +288,33 @@ footer { color: var(--muted); font-size: 12.5px; margin-top: 18px; }
   <header>
     <h1>국민연금 국내주식 추적</h1>
     <p>국민연금이 공시한 <span class="hy"></span>년 말 국내주식 보유분을 매일 종가로 평가한 금액입니다.</p>
-    <span class="badge" id="badge"></span>
-    <span class="badge" id="lookup"></span>
     <div id="statusBanner"></div>
   </header>
 
-  <section class="tiles" id="tiles" aria-label="핵심 지표"></section>
-
-  <section class="card">
-    <h2>실제 조회 기록</h2>
-    <p class="sub">공개 API를 실제로 조회한 값을 조회한 날(Asia/Seoul)마다 한 건씩 저장합니다. 같은 날 다시 조회하면 같은 행을 갱신합니다.</p>
-    <div class="board" id="liveBoard"></div>
-  </section>
-
-  <section class="card">
-    <h2>일별 평가액</h2>
-    <p class="sub">단위: 조 원 · 점은 국민연금이 공시한 월말 국내주식 평가액 · 세로 점선은 새 연말 공시로 보유 내역을 교체한 날</p>
+  <div class="card">
+    <section class="hero" id="tiles" aria-label="핵심 지표"></section>
+    <div class="meta"><span id="badge"></span><span id="lookup"></span></div>
+    <div class="chart" id="chart"><svg id="svg" role="img" aria-label="일별 평가액 추이"></svg><div class="tip" id="tip"></div></div>
     <div class="controls" role="group" aria-label="기간">
       <button data-range="21">1개월</button>
       <button data-range="63">3개월</button>
       <button data-range="126">6개월</button>
       <button data-range="0" aria-pressed="true">전체</button>
-      <div class="legend">
-        <span><i class="key-line"></i>추적값 (연말 공시 보유분)</span>
-        <span><i class="key-dot"></i>국민연금 공시 월말값</span>
-      </div>
     </div>
-    <div class="chart" id="chart"><svg id="svg" role="img" aria-label="일별 평가액 추이"></svg><div class="tip" id="tip"></div></div>
+    <div class="legend">
+      <span><i class="key-line"></i>추적값 (연말 공시 보유분)</span>
+      <span><i class="key-dot"></i>국민연금 공시 월말값</span>
+    </div>
+    <p class="chart-note">단위: 조 원 · 세로 점선은 새 연말 공시로 보유 내역을 교체한 날</p>
     <details><summary>표로 보기</summary><div class="tbl"><table id="dailyTable"></table></div></details>
-  </section>
+  </div>
+
+  <section class="card" id="stats" aria-label="주요 수치"></section>
 
   <section class="card">
     <h2>평가액 상위 종목</h2>
     <p class="sub" id="topSub"></p>
-    <div class="tbl"><table id="topTable"></table></div>
+    <ul class="stocks" id="topList"></ul>
   </section>
 
   <section class="card">
@@ -328,7 +348,7 @@ footer { color: var(--muted); font-size: 12.5px; margin-top: 18px; }
 
   <section class="card replay" id="replay">
     <h2>합성 재생</h2>
-    <p class="sub">과제 공개 fixture를 이 화면 안에서만 재생합니다. 값은 전부 합성 시험값이고, 실제 API를 호출하지 않으며, 위의 실제 값과 기록을 바꾸지 않습니다.</p>
+    <p class="sub">과제 공개 fixture를 이 화면 안에서만 재생합니다. 값은 전부 합성 시험값이고, 실제 API를 호출하지 않으며, 실제 값과 기록을 바꾸지 않습니다.</p>
     <div class="fixture-group"><span>정상·일별 저장</span>
       <button data-fixture="T04-NORMAL-D1-A">1일차 첫 조회</button>
       <button data-fixture="T04-NORMAL-D1-B">같은 날 재조회</button>
@@ -343,6 +363,12 @@ footer { color: var(--muted); font-size: 12.5px; margin-top: 18px; }
     </div>
     <button id="replayReset">초기화</button>
     <div class="board" id="replayBoard" hidden></div>
+  </section>
+
+  <section class="card">
+    <h2>실제 조회 기록</h2>
+    <p class="sub">공개 API를 실제로 조회한 값을 조회한 날(Asia/Seoul)마다 한 건씩 저장합니다. 같은 날 다시 조회하면 같은 행을 갱신합니다.</p>
+    <div class="board" id="liveBoard"></div>
   </section>
 
   <footer id="footer"></footer>
@@ -516,18 +542,26 @@ footer { color: var(--muted); font-size: 12.5px; margin-top: 18px; }
   const asked = new URLSearchParams(location.search).get('replay');
   if (asked && Object.hasOwn(D.fixtures, asked)) play(asked);
 
-  const tiles = [
-    ['최근 평가액', `${jo(last.v)}조 원`, fmtDate(last.d), ''],
-    ['전일 대비', arrow(last.pct) + pct(last.pct), `${dayDiff > 0 ? '+' : ''}${jo(dayDiff)}조 원`, cls(last.pct)],
-    [`${D.hold_year}년 말 대비`, arrow(D.base_pct) + pct(D.base_pct), `기준 ${jo(D.base_value)}조 원 (${fmtDate(D.base_date)})`, cls(D.base_pct)],
-    ['기간 중 최고', `${jo(peak.v)}조 원`, fmtDate(peak.d), ''],
+  // 첫 화면: 가장 중요한 숫자 하나와 전 거래일 대비
+  const hero = document.getElementById('tiles');
+  const heroValue = el('div', { class: 'v' }, `${jo(last.v)}조 원`);
+  const heroChange = el('div', { class: 'c ' + cls(last.pct) }, `전 거래일보다 ${dayDiff > 0 ? '+' : ''}${jo(dayDiff)}조 원 (${arrow(last.pct)}${pct(last.pct)})`);
+  if (failed) heroChange.append(el('span', { class: 'chip' }, '오래된 값'));
+  hero.append(el('div', { class: 'k' }, '최근 평가액'), heroValue, heroChange);
+
+  // 주요 수치
+  const stats = [
+    [`${D.hold_year}년 말 대비`, arrow(D.base_pct) + pct(D.base_pct), `기준 ${jo(D.base_value)}조 원 (${fmtDate(D.base_date)})`, cls(D.base_pct), failed],
+    ['기간 중 최고', `${jo(peak.v)}조 원`, fmtDate(peak.d), '', false],
+    ['추적 종목', `${D.n_holdings.toLocaleString('ko-KR')}개`, `${D.hold_year}년 말 공시 기준`, '', false],
   ];
-  const tilesEl = document.getElementById('tiles');
-  for (const [k, v, s, c] of tiles) {
-    const t = el('div', { class: 'tile' });
-    t.append(el('div', { class: 'k' }, k), el('div', { class: 'v ' + c }, v), el('div', { class: 's' }, s));
-    if (failed && k !== '기간 중 최고') t.append(el('span', { class: 'chip' }, '오래된 값'));
-    tilesEl.append(t);
+  const statsEl = document.getElementById('stats');
+  for (const [k, v, s, c, stale] of stats) {
+    const row = el('div', { class: 'stat' }), r = el('div', { class: 'r' });
+    r.append(el('div', { class: 'v ' + c }, v), el('div', { class: 's' }, s));
+    if (stale) r.append(el('span', { class: 'chip' }, '오래된 값'));
+    row.append(el('div', { class: 'k' }, k), r);
+    statsEl.append(row);
   }
 
   // 차트
@@ -573,7 +607,10 @@ footer { color: var(--muted); font-size: 12.5px; margin-top: 18px; }
     });
     svg.append(sv('line', { x1: L, x2: W - R, y1: H - B, y2: H - B, stroke: 'var(--axis)', 'stroke-width': 1 }));
 
+    // 선택한 기간에 오르면 빨강, 내리면 파랑 (범례·툴팁도 같은 색을 쓴다)
+    document.documentElement.style.setProperty('--s1', pts[pts.length - 1].v >= pts[0].v ? 'var(--up)' : 'var(--down)');
     const path = pts.map((p, i) => (i ? 'L' : 'M') + x(p.t).toFixed(1) + ' ' + y(p.v).toFixed(1)).join('');
+    svg.append(sv('path', { d: `${path}L${x(t1).toFixed(1)} ${H - B}L${x(t0).toFixed(1)} ${H - B}Z`, fill: 'var(--s1)', 'fill-opacity': 0.1, stroke: 'none' }));
     svg.append(sv('path', { d: path, fill: 'none', stroke: 'var(--s1)', 'stroke-width': 2, 'stroke-linejoin': 'round', 'stroke-linecap': 'round' }));
     // 새 연말 공시로 보유 내역을 교체한 날
     pts.forEach((p, i) => {
@@ -645,8 +682,14 @@ footer { color: var(--muted); font-size: 12.5px; margin-top: 18px; }
     daily.map(p => [fmtDate(p.d), jo(p.v), p.pct !== null ? { t: pct(p.pct), cls: cls(p.pct) } : '-']).reverse());
 
   document.getElementById('topSub').textContent = `전체 ${D.n_holdings.toLocaleString('ko-KR')}개 종목 중 최근 평가액 상위 ${D.top.length}개 · 단위: 조 원`;
-  fillTable('topTable', ['종목', `${D.hold_year}년 말`, '최근', '변화율', '비중'],
-    D.top.map(r => [r.name + (r.stale ? ' (거래 종료)' : ''), jo(r.base / 1e4), jo(r.now / 1e4), { t: arrow(r.chg) + pct(r.chg), cls: cls(r.chg) }, r.w.toFixed(1) + '%']));
+  const topList = document.getElementById('topList');
+  D.top.forEach((r, i) => {
+    const li = el('li'), name = el('div', { class: 'name' }), amt = el('div', { class: 'amt' });
+    name.append(el('b', {}, r.name + (r.stale ? ' (거래 종료)' : '')), el('small', {}, `비중 ${r.w.toFixed(1)}% · ${D.hold_year}년 말 ${jo(r.base / 1e4)}조 원`));
+    amt.append(el('b', {}, `${jo(r.now / 1e4)}조 원`), el('small', { class: cls(r.chg) }, arrow(r.chg) + pct(r.chg)));
+    li.append(el('span', { class: 'rank' }, String(i + 1)), name, amt);
+    topList.append(li);
+  });
 
   fillTable('checkTable', ['월말', '추적값', '공시값', '커버율', '기준 대비', '출처'],
     D.official.map(o => [o.ym.slice(0, 4) + '.' + o.ym.slice(4), jo(o.tracked), jo(o.official), o.cover.toFixed(2) + '%',
