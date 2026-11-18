@@ -33,7 +33,7 @@ daliy-dashboard/                       # git repo root (branch main)
 │   ├── README.md
 │   └── requirements.txt
 ├── nps_tracker.zip                    # Archived copy of nps_tracker/ (not used by code)
-└── .planning/                         # GSD planning docs (this file lives here)
+└── nps_tracker/                         # GSD planning docs (this file lives here)
     └── codebase/
 ```
 
@@ -92,7 +92,7 @@ daliy-dashboard/                       # git repo root (branch main)
 - Contains: `index.html` (generated), `status.json` (written by the workflow shell step).
 - Generated: yes. Committed: no (gitignored; uploaded as a Pages artifact).
 
-**`.planning/codebase/`:**
+**`nps_tracker/codebase/`:**
 - Purpose: codebase analysis documents consumed by GSD planning commands.
 - Generated: yes (by `/gsd-map-codebase`). Committed: per team policy.
 
