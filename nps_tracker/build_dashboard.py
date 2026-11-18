@@ -425,6 +425,7 @@ window.periodSummary = periodSummary;
 
   const periodForm = document.getElementById('periodForm');
   const periodResult = document.getElementById('periodResult');
+  const fmtPeriodDate = d => d ? d.replace(/-/g, '.') : ''; // YYYY-MM-DD를 YYYY.MM.DD로 변환
   periodForm.addEventListener('submit', event => {
     event.preventDefault();
     const result = window.periodSummary(periodRows, document.getElementById('periodStart').value,
@@ -438,11 +439,15 @@ window.periodSummary = periodSummary;
     const amount = value => value.toLocaleString('ko-KR', { maximumFractionDigits: 4 });
     const change = el('p', { class: cls(result.changePct) }, `변동률 ${pct(result.changePct)}`);
     periodResult.append(
-      el('p', {}, `적용 기간 ${fmtDate(result.start.date)} ~ ${fmtDate(result.end.date)} · 거래일 ${result.tradingDays}일`),
+      el('p', {}, `적용 기간 ${fmtPeriodDate(result.start.date)} ~ ${fmtPeriodDate(result.end.date)} · 거래일 ${result.tradingDays}일`),
       el('p', {}, `시작 평가액 ${amount(result.start.value)}조 원 · 종료 평가액 ${amount(result.end.value)}조 원`), change,
-      el('p', {}, `최고 ${fmtDate(result.high.date)} ${amount(result.high.value)}조 원 · 최저 ${fmtDate(result.low.date)} ${amount(result.low.value)}조 원`)
+      el('p', {}, `최고 ${fmtPeriodDate(result.high.date)} ${amount(result.high.value)}조 원 · 최저 ${fmtPeriodDate(result.low.date)} ${amount(result.low.value)}조 원`)
     );
-    if (result.notice) periodResult.append(el('p', {}, result.notice));
+    if (result.notice) {
+      // notice 문구 안의 YYYY-MM-DD 날짜도 올바르게 변환되도록 처리
+      const noticeText = result.notice.replace(/\d{4}-\d{2}-\d{2}/g, match => fmtPeriodDate(match));
+      periodResult.append(el('p', {}, noticeText));
+    }
   });
 
   // 머리말·핵심 지표
