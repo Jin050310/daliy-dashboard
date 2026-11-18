@@ -115,6 +115,9 @@ def main() -> None:
         # [날짜, 평가액, 전일 대비 %, 보유 기준 연도]
         "daily": [[r["basDt"], round(r["평가액_조"], 3), num(r["전일대비_%"]), int(r["보유기준연도"])]
                   for _, r in v.iterrows()],
+        # 기간 계산은 화면 차트의 0.001조 원 반올림 전 원본 값을 사용한다.
+        "period_daily": [{"date": f"{r['basDt'][:4]}-{r['basDt'][4:6]}-{r['basDt'][6:8]}", "value": float(r["평가액_조"])}
+                         for _, r in v.iterrows()],
         "hold_year": int(last["보유기준연도"]),
         "base_value": round(float(last["기준평가액_조"]), 3),
         "base_pct": float(last["기준일대비_%"]),
@@ -137,7 +140,9 @@ def main() -> None:
     payload = json.dumps(data, ensure_ascii=False).replace("</", "<\\/")
     config.SITE_DIR.mkdir(parents=True, exist_ok=True)
     out = config.SITE_DIR / "index.html"
-    out.write_text(TEMPLATE.replace("__DATA__", payload), encoding="utf-8")
+    period_module = (config.ROOT / "period.mjs").read_text(encoding="utf-8")
+    html = TEMPLATE.replace("__DATA__", payload).replace("__PERIOD_MODULE__", period_module)
+    out.write_text(html, encoding="utf-8")
     print(f"저장: {out} (최근일 {v['basDt'].iloc[-1]}, {v['평가액_조'].iloc[-1]:.2f}조 원)")
 
 
@@ -211,6 +216,15 @@ header p { margin: 0; color: var(--ink-2); font-size: 14px; }
 .key-line { width: 16px; height: 2px; background: var(--s1); border-radius: 1px; }
 .key-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--s2); }
 .chart-note { color: var(--muted); font-size: 12.5px; margin: 6px 0 0; }
+.period-form { display: grid; grid-template-columns: 1fr 1fr auto; gap: 10px; align-items: end; margin-top: 4px; }
+.period-form label { display: block; color: var(--ink-2); font-size: 13px; }
+.period-form input { display: block; width: 100%; margin-top: 4px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); color: var(--ink); font: inherit; }
+.period-form button { padding: 10px 16px; border: 0; border-radius: 10px; background: var(--accent); color: var(--on-accent); font: inherit; font-weight: 700; cursor: pointer; }
+.period-result { margin-top: 16px; padding: 14px; border-radius: 14px; background: var(--soft); }
+.period-result[hidden] { display: none; }
+.period-result p { margin: 0 0 8px; }
+.period-result p:last-child { margin-bottom: 0; }
+@media (max-width: 520px) { .period-form { grid-template-columns: 1fr 1fr; } .period-form button { grid-column: 1 / -1; } }
 .tip { position: absolute; pointer-events: none; background: var(--surface); border: 1px solid var(--line); border-radius: 12px;
   padding: 8px 12px; font-size: 13px; box-shadow: 0 6px 20px rgba(0,0,0,0.14); white-space: nowrap; display: none; }
 .tip .d { color: var(--muted); margin-bottom: 4px; }
@@ -311,6 +325,17 @@ button:focus-visible, summary:focus-visible, a:focus-visible { outline: 2px soli
 
   <section class="card" id="stats" aria-label="주요 수치"></section>
 
+  <section class="card" aria-labelledby="periodTitle">
+    <h2 id="periodTitle">기간 변동 조회</h2>
+    <p class="sub">시작일과 종료일을 선택하면 거래일 기준 평가액 변화를 보여 줍니다.</p>
+    <form class="period-form" id="periodForm">
+      <label>시작일<input id="periodStart" type="date" required></label>
+      <label>종료일<input id="periodEnd" type="date" required></label>
+      <button type="submit">기간 조회</button>
+    </form>
+    <div class="period-result" id="periodResult" aria-live="polite" hidden></div>
+  </section>
+
   <section class="card">
     <h2>평가액 상위 종목</h2>
     <p class="sub" id="topSub"></p>
@@ -375,10 +400,15 @@ button:focus-visible, summary:focus-visible, a:focus-visible { outline: 2px soli
 </main>
 
 <script id="data" type="application/json">__DATA__</script>
+<script type="module">
+__PERIOD_MODULE__
+window.periodSummary = periodSummary;
+</script>
 <script>
 (function () {
   const D = JSON.parse(document.getElementById('data').textContent);
   const daily = D.daily.map(([d, v, pct, year]) => ({ d, v, pct, year, t: Date.UTC(+d.slice(0, 4), +d.slice(4, 6) - 1, +d.slice(6, 8)) }));
+  const periodRows = D.period_daily;
   document.querySelectorAll('.hy').forEach(e => { e.textContent = D.hold_year; });
   const official = D.official.filter(o => o.trust === '공식');
   const fmtDate = d => `${d.slice(0, 4)}.${d.slice(4, 6)}.${d.slice(6, 8)}`;
@@ -392,6 +422,28 @@ button:focus-visible, summary:focus-visible, a:focus-visible { outline: 2px soli
     if (text !== undefined) e.textContent = text;
     return e;
   };
+
+  const periodForm = document.getElementById('periodForm');
+  const periodResult = document.getElementById('periodResult');
+  periodForm.addEventListener('submit', event => {
+    event.preventDefault();
+    const result = window.periodSummary(periodRows, document.getElementById('periodStart').value,
+      document.getElementById('periodEnd').value);
+    periodResult.replaceChildren();
+    periodResult.hidden = false;
+    if (!result.ok) {
+      periodResult.append(el('p', {}, result.error));
+      return;
+    }
+    const amount = value => value.toLocaleString('ko-KR', { maximumFractionDigits: 4 });
+    const change = el('p', { class: cls(result.changePct) }, `변동률 ${pct(result.changePct)}`);
+    periodResult.append(
+      el('p', {}, `적용 기간 ${fmtDate(result.start.date)} ~ ${fmtDate(result.end.date)} · 거래일 ${result.tradingDays}일`),
+      el('p', {}, `시작 평가액 ${amount(result.start.value)}조 원 · 종료 평가액 ${amount(result.end.value)}조 원`), change,
+      el('p', {}, `최고 ${fmtDate(result.high.date)} ${amount(result.high.value)}조 원 · 최저 ${fmtDate(result.low.date)} ${amount(result.low.value)}조 원`)
+    );
+    if (result.notice) periodResult.append(el('p', {}, result.notice));
+  });
 
   // 머리말·핵심 지표
   const last = daily[daily.length - 1];
